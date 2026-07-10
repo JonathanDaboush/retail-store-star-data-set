@@ -1,11 +1,71 @@
 """
 data_visualization.py
 =====================
-General-purpose visualization building blocks for retail star-schema analytics.
+Renders figures.  Never computes metrics.
 
-Every function accepts a pandas DataFrame and column-name parameters, returns a
-plotly Figure, and can be further customised by the caller via .update_layout()
-or .update_traces() after the call.
+Every function receives pre-computed data (scalars, dicts, Series, or
+DataFrames produced by data_computation.py) and returns a go.Figure.  No
+arithmetic, groupby, or statistical operations are performed here.
+
+─── Boundary ────────────────────────────────────────────────────────────────
+data_computation.py                 data_visualization.py
+────────────────────────────────    ────────────────────────────────────────
+total / average / std_dev       →→  plot_kpi_cards
+aggregate_metric                →→  plot_bar · plot_choropleth
+compute_pareto                  →→  plot_pareto
+resample_to_period              →→  plot_line · plot_time_series_with_trend
+compute_growth_rate             →→  plot_time_series_with_trend (growth_col)
+compute_rolling_average         →→  plot_time_series_with_trend (rolling_col)
+compute_correlation             →→  plot_scatter
+delivery_duration_days          →→  plot_bar · plot_choropleth
+classify_delivery / rate_stats  →→  plot_kpi_cards
+composite_score                 →→  plot_bar
+
+─── API contract ────────────────────────────────────────────────────────────
+• All functions accept a pd.DataFrame plus column-name strings, or a plain
+  dict of {label: value} for KPI cards.
+• All functions return go.Figure.  Chain .update_layout() / .update_traces()
+  on the result to extend or override any styling choice.
+• The design system (_BASE_LAYOUT, _PALETTE, _PRIMARY, etc.) is declared once
+  at the top of this file — change it there and every chart updates.
+
+─── Question coverage ───────────────────────────────────────────────────────
+Q1   plot_kpi_cards
+Q2   plot_time_series_with_trend
+Q3   plot_bar
+Q4   plot_pareto
+Q5   plot_pareto
+Q6   plot_pareto
+Q7   plot_bar
+Q8   plot_distribution
+Q9   plot_choropleth · plot_bar
+Q10  plot_bar
+Q11  plot_bar · plot_grouped_bar
+Q12  plot_grouped_bar · plot_scatter
+Q13  plot_scatter
+Q14  plot_bar
+Q15  plot_bar
+Q16  plot_choropleth · plot_bar
+Q17  plot_choropleth
+Q18  plot_bar · plot_choropleth
+Q19  plot_heatmap · plot_choropleth
+Q20  plot_time_series_with_trend
+Q21  plot_bar
+Q22  plot_choropleth
+Q23  plot_kpi_cards
+Q24  plot_scatter
+Q25  plot_bar
+Q26  plot_bar
+Q27  plot_time_series_with_trend
+Q28  plot_bar
+Q29  plot_distribution
+Q30  plot_bar
+Q31  plot_scatter
+Q32  plot_scatter
+Q33  plot_kpi_cards
+Q34  plot_bar
+Q35  plot_bar
+Q36  plot_scatter
 
 Dependencies: pandas, numpy, plotly
 """
@@ -212,10 +272,10 @@ def plot_time_series_with_trend(
     Examples
     --------
     # Q2  – monthly revenue with rolling average and MoM growth
-    monthly = compute_time_series(orders, 'purchase_date', 'revenue')
-    monthly = compute_rolling_average(monthly, 'revenue', window=3)
-    monthly = compute_growth_rate(monthly, 'revenue', growth_pct_col='growth_pct')
-    plot_time_series_with_trend(monthly, 'purchase_date', 'revenue',
+    monthly = resample_to_period(orders['purchase_date'], orders['revenue'])
+    monthly['rolling_3_revenue'] = compute_rolling_average(monthly['revenue'], window=3)
+    monthly['growth_pct'] = compute_growth_rate(monthly['revenue'])
+    plot_time_series_with_trend(monthly, 'period', 'revenue',
                                 rolling_col='rolling_3_revenue',
                                 growth_col='growth_pct',
                                 title='Monthly Revenue Trend')

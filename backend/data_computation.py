@@ -1,24 +1,72 @@
 """
 data_computation.py
 ===================
-Pure-data computation building blocks for retail star-schema analytics.
+Produces numbers.  Never draws anything.
 
-Design principle
-----------------
-Every arithmetic function receives the actual data it needs — pandas Series,
-numpy arrays, or scalars — not a DataFrame plus column-name strings.
-Feed the columns in directly, like variables in a formula:
+Every function returns a scalar, pd.Series, np.ndarray, or pd.DataFrame of
+computed values.  No Plotly objects are created here.  All output is intended
+to be passed directly into data_visualization.py.
 
-    ratio  = compute_ratio(df['freight_value'], df['order_value'])
-    slope  = compute_trend_slope(monthly['revenue'])
-    corr   = compute_correlation(df['delivery_days'], df['review_score'])
+─── Boundary ────────────────────────────────────────────────────────────────
+data_computation.py                 data_visualization.py
+────────────────────────────────    ────────────────────────────────────────
+total / average / std_dev       →→  plot_kpi_cards
+aggregate_metric                →→  plot_bar · plot_choropleth
+compute_pareto                  →→  plot_pareto
+resample_to_period              →→  plot_line · plot_time_series_with_trend
+compute_growth_rate             →→  plot_time_series_with_trend (growth_col)
+compute_rolling_average         →→  plot_time_series_with_trend (rolling_col)
+compute_correlation             →→  plot_scatter
+delivery_duration_days          →→  plot_bar · plot_choropleth
+classify_delivery / rate_stats  →→  plot_kpi_cards
+composite_score                 →→  plot_bar
 
-Grouping helpers accept a value Series and a group Series so the caller
-decides what data flows in.  Multi-metric helpers that need several columns
-together still accept a DataFrame but keep the API surface small.
+─── API contract ────────────────────────────────────────────────────────────
+• Primitive functions (§1–3, §7–8) accept pd.Series / np.ndarray / list.
+  Pass df['column_name'] directly — no DataFrame, no column-name strings.
+• Grouping helpers (§5) accept Series pairs or a DataFrame + agg-map.
+• Convenience wrappers aggregate_metric and compute_pareto accept a DataFrame
+  and return a DataFrame ready to slot into chart functions without reshaping.
+• Time-series functions (§6) accept Series and return pd.DataFrame or
+  pd.Series aligned to the original index.
 
-Return types: pd.Series, scalar, or dict — ready to chain or pass to
-data_visualization.py.
+─── Question coverage ───────────────────────────────────────────────────────
+Q1   total · count_unique · count_records · average · compute_ratio
+Q2   resample_to_period · compute_growth_rate · compute_rolling_average · compute_trend_slope
+Q3   resample_to_period · compute_share · rank_series
+Q4   concentration_stats · cumulative_pct
+Q5   aggregate_metric · concentration_stats · cumulative_pct · compute_pareto
+Q6   aggregate_metric · concentration_stats · cumulative_pct · compute_pareto
+Q7   aggregate_metric · rank_series · compute_ratio
+Q8   summary_stats · average · median · std_dev
+Q9   multi_group_aggregate
+Q10  aggregate_metric · rank_series
+Q11  aggregate_metric · compute_share
+Q12  multi_group_aggregate
+Q13  multi_group_aggregate
+Q14  aggregate_metric · rank_series
+Q15  multi_group_aggregate · compute_ratio
+Q16  multi_group_aggregate
+Q17  multi_group_aggregate
+Q18  multi_group_aggregate
+Q19  compute_ratio
+Q20  delivery_duration_days · average · median · resample_to_period · compute_trend_slope
+Q21  multi_group_aggregate · rank_series
+Q22  multi_group_aggregate · rank_series
+Q23  delivery_delay_days · classify_delivery · delivery_rate_stats
+Q24  compute_correlation · delivery_duration_days
+Q25  multi_group_aggregate · rank_series
+Q26  multi_group_aggregate · rank_series
+Q27  resample_to_period · compute_rolling_average · compute_trend_slope
+Q28  aggregate_metric · compute_share
+Q29  multi_group_aggregate · summary_stats
+Q30  multi_group_aggregate
+Q31  compute_basket_size · compute_correlation
+Q32  compute_ratio · flag_outliers
+Q33  total · compute_ratio
+Q34  multi_group_aggregate · composite_score
+Q35  multi_group_aggregate · composite_score
+Q36  multi_group_aggregate · composite_score
 
 Dependencies: pandas, numpy, scipy
 """
@@ -195,6 +243,25 @@ def concentration_stats(
     return result
 
 
+def compute_pareto(df: pd.DataFrame, value_col: str) -> pd.DataFrame:
+    """Add a 'cumulative_pct' column to a DataFrame already sorted descending.
+
+    aggregate_metric() sorts automatically.  If building a DataFrame manually,
+    sort by value_col descending before calling this function.
+
+    Returns the same DataFrame (copy) with a new 'cumulative_pct' column
+    expressing the running share of the total — ready to feed into
+    plot_pareto().
+
+    Q4  customer revenue Pareto
+    Q5  seller revenue Pareto : compute_pareto(aggregate_metric(df, 'seller_id', 'revenue'), 'revenue')
+    Q6  product revenue Pareto
+    """
+    df = df.copy()
+    df["cumulative_pct"] = cumulative_pct(df[value_col])
+    return df
+
+
 # ── 5. Grouping ───────────────────────────────────────────────────────────────
 #
 # Pass the value Series and the group Series — the function groups and
@@ -258,6 +325,58 @@ def multi_group_aggregate(
         for col in result.columns
     ]
     return result
+
+
+def aggregate_metric(
+    df: pd.DataFrame,
+    group_col: Union[str, List[str]],
+    value_col: str,
+    func: str = "sum",
+    sort: bool = True,
+) -> pd.DataFrame:
+    """Group a DataFrame by one or more columns and aggregate a single metric.
+
+    Returns a clean [group_col, value_col] DataFrame sorted descending by
+    value (sort=True, default) — ready to feed directly into plot_bar(),
+    plot_pareto(), or plot_choropleth() without any reshaping.
+
+    Parameters
+    ----------
+    df        : source DataFrame.
+    group_col : column name(s) to group by.
+    value_col : numeric column to aggregate.
+    func      : 'sum' (default), 'mean', 'count', 'nunique', 'median', 'std'.
+    sort      : sort by value descending.  Set False to preserve group order.
+
+    Q5  seller revenue   : aggregate_metric(df, 'seller_id', 'revenue')
+    Q6  product revenue  : aggregate_metric(df, 'product_id', 'revenue')
+    Q7  customer CLV     : aggregate_metric(df, 'customer_id', 'revenue')
+    Q10 product rank     : aggregate_metric(df, 'product_id', 'revenue')
+    Q11 category revenue : aggregate_metric(df, 'product_category_name', 'revenue')
+    Q14 top sellers      : aggregate_metric(df, 'seller_id', 'revenue')
+    Q17 state revenue    : aggregate_metric(df, 'customer_state', 'revenue')
+    Q28 payment share    : aggregate_metric(df, 'payment_type', 'payment_value')
+    """
+    result = df.groupby(group_col, as_index=False)[value_col].agg(func)
+    if sort:
+        result = result.sort_values(value_col, ascending=False).reset_index(drop=True)
+    return result
+
+
+def compute_basket_size(order_ids: Numeric) -> pd.Series:
+    """Count of line items per order from the order-items level table.
+
+    Pass the order_id column from the order_items table (one row per item).
+    Returns a Series indexed by order_id with the item count for each order.
+
+    Pair the result with an order-level revenue Series, then call
+    compute_correlation() to test whether larger baskets drive higher spend.
+
+    Q31 basket_size = compute_basket_size(order_items['order_id'])
+        compute_correlation(basket_size, order_revenue)
+    """
+    s = pd.Series(order_ids, name="order_id")
+    return s.value_counts().rename("basket_size")
 
 
 # ── 6. Time-series transformations ───────────────────────────────────────────
