@@ -1,756 +1,377 @@
 """
 data_visualization.py
-=====================
-Renders figures.  Never computes metrics.
 
-Every function receives pre-computed data (scalars, dicts, Series, or
-DataFrames produced by data_computation.py) and returns a go.Figure.  No
-arithmetic, groupby, or statistical operations are performed here.
+Purpose:
+--------
+Visualization layer of the analytics module.
 
-─── Boundary ────────────────────────────────────────────────────────────────
-data_computation.py                 data_visualization.py
-────────────────────────────────    ────────────────────────────────────────
-total / average / std_dev       →→  plot_kpi_cards
-aggregate_metric                →→  plot_bar · plot_choropleth
-compute_pareto                  →→  plot_pareto
-resample_to_period              →→  plot_line · plot_time_series_with_trend
-compute_growth_rate             →→  plot_time_series_with_trend (growth_col)
-compute_rolling_average         →→  plot_time_series_with_trend (rolling_col)
-compute_correlation             →→  plot_scatter
-delivery_duration_days          →→  plot_bar · plot_choropleth
-classify_delivery / rate_stats  →→  plot_kpi_cards
-composite_score                 →→  plot_bar
+The visualization module is responsible for displaying the results
+produced by the computation layer.
 
-─── API contract ────────────────────────────────────────────────────────────
-• All functions accept a pd.DataFrame plus column-name strings, or a plain
-  dict of {label: value} for KPI cards.
-• All functions return go.Figure.  Chain .update_layout() / .update_traces()
-  on the result to extend or override any styling choice.
-• The design system (_BASE_LAYOUT, _PALETTE, _PRIMARY, etc.) is declared once
-  at the top of this file — change it there and every chart updates.
+It takes computed outputs and transforms them into:
+- charts
+- graphs
+- dashboards
+- KPI displays
+- geographic visualizations
 
-─── Question coverage ───────────────────────────────────────────────────────
-Q1   plot_kpi_cards
-Q2   plot_time_series_with_trend
-Q3   plot_bar
-Q4   plot_pareto
-Q5   plot_pareto
-Q6   plot_pareto
-Q7   plot_bar
-Q8   plot_distribution
-Q9   plot_choropleth · plot_bar
-Q10  plot_bar
-Q11  plot_bar · plot_grouped_bar
-Q12  plot_grouped_bar · plot_scatter
-Q13  plot_scatter
-Q14  plot_bar
-Q15  plot_bar
-Q16  plot_choropleth · plot_bar
-Q17  plot_choropleth
-Q18  plot_bar · plot_choropleth
-Q19  plot_heatmap · plot_choropleth
-Q20  plot_time_series_with_trend
-Q21  plot_bar
-Q22  plot_choropleth
-Q23  plot_kpi_cards
-Q24  plot_scatter
-Q25  plot_bar
-Q26  plot_bar
-Q27  plot_time_series_with_trend
-Q28  plot_bar
-Q29  plot_distribution
-Q30  plot_bar
-Q31  plot_scatter
-Q32  plot_scatter
-Q33  plot_kpi_cards
-Q34  plot_bar
-Q35  plot_bar
-Q36  plot_scatter
+Inputs:
+- Computed metrics
+- Aggregated DataFrames
+- Statistical outputs
 
-Dependencies: pandas, numpy, plotly
+Outputs:
+- Visual representations of analytical results
+
+The visualization layer DOES NOT perform calculations or modify
+analytical results.
+
+Rules:
+------
+- No calculations.
+- No groupby operations.
+- No metric creation.
+- Receives prepared data.
+- Returns Plotly figures.
+
+Question Coverage:
+------------------
+Q1   kpi_cards
+Q2   dual_axis_chart, line_chart
+Q3   bar_chart
+Q4   pareto_chart
+Q5   pareto_chart
+Q6   pareto_chart
+Q7   bar_chart
+Q8   distribution_chart
+Q9   map_chart, bar_chart
+Q10  bar_chart
+Q11  bar_chart
+Q12  scatter_chart
+Q13  scatter_chart
+Q14  bar_chart
+Q15  bar_chart, scatter_chart
+Q16  map_chart, bar_chart
+Q17  map_chart
+Q18  bar_chart, map_chart
+Q19  map_chart, bar_chart
+Q20  line_chart
+Q21  bar_chart
+Q22  map_chart
+Q23  kpi_cards
+Q24  scatter_chart
+Q25  bar_chart
+Q26  bar_chart
+Q27  line_chart
+Q28  bar_chart
+Q29  distribution_chart, bar_chart
+Q30  bar_chart
+Q31  scatter_chart
+Q32  scatter_chart
+Q33  kpi_cards, bar_chart
+Q34  bar_chart
+Q35  bar_chart
+Q36  scatter_chart
 """
 
-from typing import Dict, List, Optional, Union
+from typing import Optional, List
 
-import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-# ── Design system ──────────────────────────────────────────────────────────────
-_PALETTE = [
-    "#2563EB", "#16A34A", "#DC2626", "#D97706", "#7C3AED",
-    "#0891B2", "#DB2777", "#65A30D", "#EA580C", "#4F46E5",
-]
-_PRIMARY  = "#2563EB"
-_POSITIVE = "#16A34A"
-_NEGATIVE = "#DC2626"
-_NEUTRAL  = "#9CA3AF"
 
-_BASE_LAYOUT = dict(
-    template="plotly_white",
-    font=dict(family="Inter, -apple-system, Arial, sans-serif", size=13, color="#111827"),
-    title_font=dict(size=17, color="#111827"),
-    plot_bgcolor="#FFFFFF",
-    paper_bgcolor="#FFFFFF",
-    margin=dict(l=64, r=40, t=72, b=60),
-    hoverlabel=dict(bgcolor="white", font_size=13, bordercolor="#E5E7EB"),
-)
+# ============================================================
+# BAR CHART
+# ============================================================
+
+def bar_chart(
+    df,
+    x,
+    y,
+    title=""
+):
+    """
+    Compare categories.
+
+    Examples:
+    - revenue by seller
+    - sales by category
+    """
+
+    return px.bar(
+        df,
+        x=x,
+        y=y,
+        title=title
+    )
 
 
-def _base(fig: go.Figure, title: str = "", height: int = 460) -> go.Figure:
-    """Apply the shared design system to a figure and return it."""
-    fig.update_layout(title=dict(text=title, x=0.04), height=height, **_BASE_LAYOUT)
+# ============================================================
+# LINE CHART
+# ============================================================
+
+def line_chart(
+    df,
+    x,
+    y,
+    title=""
+):
+    """
+    Show trends over time.
+    """
+
+    return px.line(
+        df,
+        x=x,
+        y=y,
+        title=title
+    )
+
+
+# ============================================================
+# DUAL AXIS CHART
+# ============================================================
+
+def dual_axis_chart(
+    df,
+    x,
+    y_line,
+    y_bar,
+    title=""
+):
+    """
+    Show a metric trend alongside period-over-period change.
+
+    Left axis:  line  (e.g. monthly revenue)
+    Right axis: bars  (e.g. month-over-month growth %)
+
+    Useful for:
+    - revenue trend with growth rate (Q2)
+    - satisfaction trend with review volume (Q27)
+    """
+
+    fig = make_subplots(
+        specs=[[{"secondary_y": True}]]
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=df[x],
+            y=df[y_line],
+            name=y_line,
+            mode="lines+markers"
+        ),
+        secondary_y=False
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=df[x],
+            y=df[y_bar],
+            name=y_bar,
+            opacity=0.4
+        ),
+        secondary_y=True
+    )
+
+    fig.update_layout(title=title)
+
     return fig
 
 
-# ── 1. Bar chart ───────────────────────────────────────────────────────────────
+# ============================================================
+# SCATTER CHART
+# ============================================================
 
-def plot_bar(
-    df: pd.DataFrame,
-    x: str,
-    y: str,
-    title: str = "",
-    orientation: str = "v",
-    top_n: Optional[int] = None,
-    color_col: Optional[str] = None,
-    text_col: Optional[str] = None,
-    bar_color: str = _PRIMARY,
-) -> go.Figure:
+def scatter_chart(
+    df,
+    x,
+    y,
+    size=None,
+    color=None,
+    title=""
+):
     """
-    Vertical or horizontal bar chart, optionally limited to the top N rows.
+    Show relationships.
 
-    Parameters
-    ----------
-    x : str
-        Category axis column (label when orientation='v', value when 'h').
-    y : str
-        Value axis column.
-    orientation : str
-        'v' (default) – vertical bars.  'h' – horizontal bars.
-    top_n : int, optional
-        Keep only the top N rows sorted by value before plotting.
-    color_col : str, optional
-        Column that maps bar colours to a discrete palette.
-    text_col : str, optional
-        Column whose values are displayed on each bar.
-    bar_color : str
-        Single colour used when color_col is not provided.
-
-    Returns
-    -------
-    go.Figure
-
-    Examples
-    --------
-    # Q11 – revenue by product category (vertical)
-    plot_bar(category_revenue, x='category', y='revenue', title='Revenue by Category')
-
-    # Q14 – top 20 sellers by revenue (horizontal)
-    plot_bar(sellers, x='revenue', y='seller_id', orientation='h', top_n=20,
-             title='Top 20 Sellers by Revenue')
+    Examples:
+    - delivery vs rating
+    - revenue vs customers
     """
-    df = df.copy()
-    sort_col = y if orientation == "v" else x
-    df = df.sort_values(sort_col, ascending=(orientation == "h"))
-    if top_n:
-        df = df.tail(top_n) if orientation == "h" else df.head(top_n)
 
-    kwargs: Dict = dict(
-        data_frame=df,
-        x=x if orientation == "v" else y,
-        y=y if orientation == "v" else x,
-        orientation=orientation,
+    return px.scatter(
+        df,
+        x=x,
+        y=y,
+        size=size,
+        color=color,
+        title=title
     )
-    if color_col:
-        kwargs["color"] = color_col
-        kwargs["color_discrete_sequence"] = _PALETTE
-    else:
-        kwargs["color_discrete_sequence"] = [bar_color]
-
-    if text_col:
-        kwargs["text"] = text_col
-
-    fig = px.bar(**kwargs)
-    fig.update_traces(marker_line_width=0)
-    return _base(fig, title)
 
 
-# ── 2. Line chart ──────────────────────────────────────────────────────────────
+# ============================================================
+# DISTRIBUTION CHART
+# ============================================================
 
-def plot_line(
-    df: pd.DataFrame,
-    x: str,
-    y: Union[str, List[str]],
-    title: str = "",
-    markers: bool = True,
-    color_col: Optional[str] = None,
-) -> go.Figure:
+def distribution_chart(
+    df,
+    column,
+    chart_type="histogram",
+    title=""
+):
     """
-    Single or multi-line chart.
-
-    Parameters
-    ----------
-    x : str
-        Horizontal axis column (typically a date or period column).
-    y : str or list of str
-        One column → single line.  List → one line per column.
-    markers : bool
-        Show point markers on the line.
-    color_col : str, optional
-        Column that splits the data into one line per category (long-format data).
-        Only used when y is a single string.
-
-    Returns
-    -------
-    go.Figure
-
-    Examples
-    --------
-    # Q2  – monthly revenue trend
-    plot_line(monthly, x='month', y='revenue', title='Monthly Revenue')
-
-    # Q2  – revenue + 3-month rolling average together
-    plot_line(monthly, x='month', y=['revenue', 'rolling_3_revenue'],
-              title='Revenue with Rolling Average')
+    Show value distribution.
     """
-    mode = "lines+markers" if markers else "lines"
 
-    if isinstance(y, list):
-        fig = go.Figure()
-        for i, col in enumerate(y):
-            fig.add_trace(go.Scatter(
-                x=df[x], y=df[col], name=col, mode=mode,
-                line=dict(color=_PALETTE[i % len(_PALETTE)], width=2),
-            ))
-    else:
-        kwargs: Dict = dict(
-            data_frame=df, x=x, y=y, markers=markers,
-            color_discrete_sequence=_PALETTE,
+    if chart_type == "histogram":
+
+        return px.histogram(
+            df,
+            x=column,
+            title=title
         )
-        if color_col:
-            kwargs["color"] = color_col
-        fig = px.line(**kwargs)
-        fig.update_traces(line_width=2)
 
-    return _base(fig, title)
+    if chart_type == "box":
 
-
-# ── 3. Time-series with trend overlay ─────────────────────────────────────────
-
-def plot_time_series_with_trend(
-    df: pd.DataFrame,
-    date_col: str,
-    value_col: str,
-    title: str = "",
-    rolling_col: Optional[str] = None,
-    growth_col: Optional[str] = None,
-) -> go.Figure:
-    """
-    Time-series line with optional rolling-average overlay and growth-rate bars
-    on a secondary y-axis.
-
-    Parameters
-    ----------
-    date_col : str
-        Datetime column (horizontal axis).
-    value_col : str
-        Primary numeric metric to plot as a line.
-    rolling_col : str, optional
-        Pre-computed rolling average column to overlay (dotted green line).
-        Produce it with compute_rolling_average() before calling this function.
-    growth_col : str, optional
-        Period-over-period growth rate column to display as bars on a secondary
-        axis (green = positive, red = negative).
-        Produce it with compute_growth_rate() before calling this function.
-
-    Returns
-    -------
-    go.Figure
-
-    Examples
-    --------
-    # Q2  – monthly revenue with rolling average and MoM growth
-    monthly = resample_to_period(orders['purchase_date'], orders['revenue'])
-    monthly['rolling_3_revenue'] = compute_rolling_average(monthly['revenue'], window=3)
-    monthly['growth_pct'] = compute_growth_rate(monthly['revenue'])
-    plot_time_series_with_trend(monthly, 'period', 'revenue',
-                                rolling_col='rolling_3_revenue',
-                                growth_col='growth_pct',
-                                title='Monthly Revenue Trend')
-    """
-    has_secondary = bool(growth_col and growth_col in df.columns)
-    fig = make_subplots(specs=[[{"secondary_y": has_secondary}]])
-
-    fig.add_trace(go.Scatter(
-        x=df[date_col], y=df[value_col], name=value_col,
-        mode="lines+markers", line=dict(color=_PRIMARY, width=2),
-    ), secondary_y=False)
-
-    if rolling_col and rolling_col in df.columns:
-        fig.add_trace(go.Scatter(
-            x=df[date_col], y=df[rolling_col], name=rolling_col,
-            mode="lines", line=dict(color=_POSITIVE, dash="dot", width=2),
-        ), secondary_y=False)
-
-    if has_secondary:
-        bar_colors = df[growth_col].apply(
-            lambda v: _POSITIVE if (pd.notna(v) and v >= 0) else _NEGATIVE
+        return px.box(
+            df,
+            y=column,
+            title=title
         )
-        fig.add_trace(go.Bar(
-            x=df[date_col], y=df[growth_col], name=growth_col,
-            marker_color=bar_colors.tolist(), opacity=0.35,
-        ), secondary_y=True)
-        fig.update_yaxes(title_text="Growth Rate %", secondary_y=True)
-
-    fig.update_yaxes(title_text=value_col, secondary_y=False)
-    return _base(fig, title)
 
 
-# ── 4. Pareto chart ────────────────────────────────────────────────────────────
+# ============================================================
+# PARETO CHART
+# ============================================================
 
-def plot_pareto(
-    df: pd.DataFrame,
-    entity_col: str,
-    value_col: str,
-    cumulative_col: str,
-    title: str = "",
-    top_n: Optional[int] = None,
-) -> go.Figure:
+def pareto_chart(
+    df,
+    category,
+    value,
+    cumulative,
+    title=""
+):
     """
-    Pareto chart: descending bars for each entity + cumulative % line on a
-    secondary axis, with a dashed 80 % reference line.
+    Display concentration.
 
-    Parameters
-    ----------
-    entity_col : str
-        Category label column (x-axis).
-    value_col : str
-        Numeric column driving bar heights.
-    cumulative_col : str
-        Pre-computed cumulative % column (from compute_pareto()).
-    top_n : int, optional
-        Limit to the top N entities.
-
-    Returns
-    -------
-    go.Figure
-
-    Examples
-    --------
-    # Q5  – seller revenue Pareto
-    seller_rev = aggregate_metric(orders, 'seller_id', 'revenue', 'sum')
-    seller_rev = compute_pareto(seller_rev, 'revenue')
-    plot_pareto(seller_rev, 'seller_id', 'revenue', 'cumulative_pct',
-                title='Seller Revenue Pareto', top_n=30)
+    Requires:
+    - category column
+    - value column
+    - cumulative percentage column
     """
-    df = df.sort_values(value_col, ascending=False)
-    if top_n:
-        df = df.head(top_n)
 
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig = go.Figure()
 
-    fig.add_trace(go.Bar(
-        x=df[entity_col], y=df[value_col], name=value_col,
-        marker_color=_PRIMARY, opacity=0.82, marker_line_width=0,
-    ), secondary_y=False)
-
-    fig.add_trace(go.Scatter(
-        x=df[entity_col], y=df[cumulative_col], name="Cumulative %",
-        mode="lines+markers", line=dict(color=_NEGATIVE, width=2),
-    ), secondary_y=True)
-
-    fig.add_hline(y=80, line_dash="dash", line_color=_NEUTRAL,
-                  annotation_text="80 %", annotation_position="top right",
-                  secondary_y=True)
-
-    fig.update_yaxes(title_text=value_col, secondary_y=False)
-    fig.update_yaxes(title_text="Cumulative %", range=[0, 105], secondary_y=True)
-    return _base(fig, title)
-
-
-# ── 5. Scatter / Bubble chart ─────────────────────────────────────────────────
-
-def plot_scatter(
-    df: pd.DataFrame,
-    x: str,
-    y: str,
-    title: str = "",
-    color_col: Optional[str] = None,
-    size_col: Optional[str] = None,
-    trendline: bool = True,
-    hover_cols: Optional[List[str]] = None,
-) -> go.Figure:
-    """
-    Scatter or bubble chart with an optional OLS trendline.
-
-    Parameters
-    ----------
-    x : str
-        Horizontal axis column.
-    y : str
-        Vertical axis column.
-    color_col : str, optional
-        Column that maps points to discrete colours.
-    size_col : str, optional
-        Column that controls bubble radius (bubble chart mode).
-    trendline : bool
-        Draw an OLS linear trendline (default True).
-    hover_cols : list of str, optional
-        Additional columns shown in the hover tooltip.
-
-    Returns
-    -------
-    go.Figure
-
-    Examples
-    --------
-    # Q24 – delivery time vs review score correlation
-    plot_scatter(orders, x='delivery_days', y='review_score',
-                 title='Delivery Time vs Customer Rating')
-
-    # Q36 – underpenetrated markets: revenue vs customer count (bubbles by state)
-    plot_scatter(geo, x='customer_count', y='revenue_per_customer',
-                 size_col='revenue', color_col='state',
-                 title='Market Penetration Map', trendline=False)
-    """
-    kwargs: Dict = dict(
-        data_frame=df, x=x, y=y,
-        trendline="ols" if trendline else None,
-        color_discrete_sequence=_PALETTE,
-        opacity=0.75,
+    fig.add_bar(
+        x=df[category],
+        y=df[value],
+        name=value
     )
-    if color_col:
-        kwargs["color"] = color_col
-    if size_col:
-        kwargs["size"] = size_col
-    if hover_cols:
-        kwargs["hover_data"] = hover_cols
 
-    fig = px.scatter(**{k: v for k, v in kwargs.items() if v is not None})
-    fig.update_traces(marker_line_width=0.5, marker_line_color="white")
-    return _base(fig, title)
-
-
-# ── 6. Choropleth map ──────────────────────────────────────────────────────────
-
-def plot_choropleth(
-    df: pd.DataFrame,
-    location_col: str,
-    value_col: str,
-    title: str = "",
-    geojson=None,
-    featureidkey: Optional[str] = None,
-    locationmode: str = "geojson-id",
-    scope: Optional[str] = None,
-    colorscale: str = "Blues",
-) -> go.Figure:
-    """
-    Choropleth map for geographic metric display.
-
-    For Brazilian state-level maps pass a Brazil GeoJSON via the geojson
-    parameter and set featureidkey to match the property that contains the
-    state code in that GeoJSON (e.g. 'properties.sigla').
-
-    Parameters
-    ----------
-    location_col : str
-        Column whose values match the geographic identifiers in geojson or
-        the built-in Plotly location set.
-    value_col : str
-        Numeric metric shown as colour intensity.
-    geojson : dict, optional
-        GeoJSON FeatureCollection for custom boundaries (e.g. Brazilian states).
-    featureidkey : str, optional
-        Path inside each GeoJSON feature used to match location_col values.
-    locationmode : str
-        Used only when geojson is None (e.g. 'USA-states', 'country names').
-    scope : str, optional
-        Map scope when geojson is None (e.g. 'south america', 'world').
-    colorscale : str
-        Plotly colorscale name.
-
-    Returns
-    -------
-    go.Figure
-
-    Examples
-    --------
-    # Q17 – revenue by Brazilian state (requires Brazil GeoJSON)
-    plot_choropleth(state_rev, location_col='customer_state',
-                    value_col='revenue', geojson=brazil_geojson,
-                    featureidkey='properties.sigla',
-                    title='Revenue by State')
-    """
-    kwargs: Dict = dict(
-        data_frame=df,
-        locations=location_col,
-        color=value_col,
-        color_continuous_scale=colorscale,
+    fig.add_scatter(
+        x=df[category],
+        y=df[cumulative],
+        mode="lines",
+        name="Cumulative %"
     )
-    if geojson is not None:
-        kwargs["geojson"] = geojson
-        kwargs["featureidkey"] = featureidkey
-    else:
-        kwargs["locationmode"] = locationmode
-        if scope:
-            kwargs["scope"] = scope
 
-    fig = px.choropleth(**kwargs)
-    fig.update_geos(showframe=False, showcoastlines=True, coastlinecolor="#E5E7EB")
-    return _base(fig, title, height=500)
+    return fig
 
 
-# ── 7. Distribution plot ───────────────────────────────────────────────────────
+# ============================================================
+# HEATMAP
+# ============================================================
 
-def plot_distribution(
-    df: pd.DataFrame,
-    col: str,
-    title: str = "",
-    kind: str = "histogram",
-    nbins: int = 40,
-    group_col: Optional[str] = None,
-) -> go.Figure:
+def heatmap(
+    df,
+    x,
+    y,
+    value,
+    title=""
+):
     """
-    Plot the distribution of a numeric column.
-
-    Parameters
-    ----------
-    col : str
-        Numeric column to visualise.
-    kind : str
-        'histogram' (default), 'box', or 'violin'.
-    nbins : int
-        Number of histogram bins (ignored for box / violin).
-    group_col : str, optional
-        Column used to split distributions by category (colour-coded).
-
-    Returns
-    -------
-    go.Figure
-
-    Examples
-    --------
-    # Q8  – order value distribution
-    plot_distribution(orders, 'order_value', title='Order Value Distribution')
-
-    # Q29 – payment value by installment count
-    plot_distribution(payments, 'payment_value', kind='box',
-                      group_col='payment_installments',
-                      title='Payment Value by Instalment Count')
+    Show two-dimensional patterns.
     """
-    kwargs: Dict = dict(
-        data_frame=df, title=title, color_discrete_sequence=_PALETTE
+
+    table = df.pivot_table(
+        index=y,
+        columns=x,
+        values=value
     )
-    if group_col:
-        kwargs["color"] = group_col
 
-    if kind == "histogram":
-        fig = px.histogram(df, x=col, nbins=nbins, **{
-            k: v for k, v in kwargs.items()
-            if k not in ("data_frame", "title")
-        })
-        fig.update_traces(marker_line_width=0.4, marker_line_color="white")
-    elif kind == "box":
-        fig = px.box(df, y=col, x=group_col, **{
-            k: v for k, v in kwargs.items()
-            if k not in ("data_frame", "title")
-        })
-    elif kind == "violin":
-        fig = px.violin(df, y=col, x=group_col, box=True, **{
-            k: v for k, v in kwargs.items()
-            if k not in ("data_frame", "title")
-        })
-    else:
-        raise ValueError(f"kind must be 'histogram', 'box', or 'violin'. Got: {kind!r}")
-
-    return _base(fig, title)
-
-
-# ── 8. Heatmap ────────────────────────────────────────────────────────────────
-
-def plot_heatmap(
-    df: pd.DataFrame,
-    x: str,
-    y: str,
-    value: str,
-    title: str = "",
-    colorscale: str = "Blues",
-    aggfunc: str = "mean",
-) -> go.Figure:
-    """
-    Heatmap from long-form data, pivoted to a x × y grid.
-
-    Parameters
-    ----------
-    x : str
-        Column mapped to the horizontal axis (e.g. month, payment_type).
-    y : str
-        Column mapped to the vertical axis (e.g. state, category).
-    value : str
-        Numeric column aggregated into each cell.
-    colorscale : str
-        Plotly colorscale name.
-    aggfunc : str
-        Pivot aggregation function: 'mean', 'sum', 'count'.
-
-    Returns
-    -------
-    go.Figure
-
-    Examples
-    --------
-    # Q24 – average review score by month × delivery status
-    plot_heatmap(orders, x='month', y='delivery_status',
-                 value='review_score', title='Rating Heatmap')
-
-    # Q19 – freight ratio by state × month
-    plot_heatmap(orders, x='month', y='customer_state',
-                 value='freight_ratio', aggfunc='mean',
-                 title='Freight Ratio by State and Month')
-    """
-    pivot = df.pivot_table(index=y, columns=x, values=value, aggfunc=aggfunc)
-    fig = px.imshow(
-        pivot,
-        color_continuous_scale=colorscale,
-        aspect="auto",
-        text_auto=".2f",
+    return px.imshow(
+        table,
+        title=title
     )
-    fig.update_xaxes(side="bottom")
-    return _base(fig, title, height=520)
 
 
-# ── 9. KPI cards ──────────────────────────────────────────────────────────────
+# ============================================================
+# GEOGRAPHIC MAP
+# ============================================================
 
-def plot_kpi_cards(
-    metrics: Dict[str, float],
-    title: str = "",
-    number_format: Optional[Dict[str, Dict]] = None,
-) -> go.Figure:
+def map_chart(
+    df,
+    location,
+    value,
+    title=""
+):
     """
-    Render a row of numeric KPI indicator cards.
-
-    Parameters
-    ----------
-    metrics : dict
-        {label: numeric_value} mapping.  One card is rendered per entry.
-    number_format : dict, optional
-        Per-label format overrides passed to go.Indicator's 'number' parameter.
-        e.g. {'Total Revenue': {'prefix': 'R$ ', 'valueformat': ',.0f'}}
-
-    Returns
-    -------
-    go.Figure
-
-    Examples
-    --------
-    # Q1  – executive summary metrics
-    plot_kpi_cards({
-        'Total Revenue':    12_500_000,
-        'Total Orders':     99_441,
-        'Total Customers':  96_096,
-        'Total Sellers':    3_095,
-        'Avg Order Value':  154.1,
-    }, title='Executive Revenue Summary')
+    Geographic metric visualization.
     """
+
+    return px.choropleth(
+        df,
+        locations=location,
+        color=value,
+        title=title
+    )
+
+
+# ============================================================
+# KPI DISPLAY
+# ============================================================
+
+def kpi_cards(
+    metrics: dict,
+    title=""
+):
+    """
+    Display important summary numbers.
+
+    Useful for:
+    - executive summary (Q1)
+    - delivery rate summary (Q23)
+    - freight cost summary (Q33)
+    """
+
     n = len(metrics)
+
     if n == 0:
         return go.Figure()
 
-    if number_format is None:
-        number_format = {}
-
     fig = make_subplots(
-        rows=1, cols=n,
-        specs=[[{"type": "indicator"}] * n],
+        rows=1,
+        cols=n,
+        specs=[[{"type": "indicator"}] * n]
     )
-    for i, (label, value) in enumerate(metrics.items(), start=1):
-        num_kwargs = number_format.get(label, {"font": {"size": 34, "color": _PRIMARY}})
+
+    for i, (name, value) in enumerate(metrics.items(), start=1):
+
         fig.add_trace(
             go.Indicator(
                 mode="number",
                 value=float(value),
-                number=num_kwargs,
-                title={"text": label, "font": {"size": 13, "color": "#374151"}},
+                title={"text": name}
             ),
-            row=1, col=i,
+            row=1,
+            col=i
         )
 
     fig.update_layout(
-        template="plotly_white",
-        font=dict(family="Inter, -apple-system, Arial, sans-serif"),
-        paper_bgcolor="#FFFFFF",
-        title=dict(text=title, font=dict(size=17, color="#111827"), x=0.04),
-        height=180,
-        margin=dict(l=24, r=24, t=56, b=16),
+        title=title,
+        height=200
     )
+
     return fig
-
-
-# ── 10. Grouped / stacked bar chart ───────────────────────────────────────────
-
-def plot_grouped_bar(
-    df: pd.DataFrame,
-    x: str,
-    y_cols: List[str],
-    title: str = "",
-    barmode: str = "group",
-    top_n: Optional[int] = None,
-    orientation: str = "v",
-) -> go.Figure:
-    """
-    Grouped or stacked bar chart for comparing multiple metrics per category.
-
-    Parameters
-    ----------
-    x : str
-        Category column (horizontal axis when orientation='v').
-    y_cols : list of str
-        Numeric columns, each rendered as a separate bar series.
-    barmode : str
-        'group' (default) – bars side by side.  'stack' – bars stacked.
-    top_n : int, optional
-        Limit to the first N rows of the (pre-sorted) DataFrame.
-    orientation : str
-        'v' (default) – vertical.  'h' – horizontal (x becomes the value axis).
-
-    Returns
-    -------
-    go.Figure
-
-    Examples
-    --------
-    # Q12 – units sold vs revenue per product (side-by-side)
-    plot_grouped_bar(products, x='product_name',
-                     y_cols=['units_sold', 'revenue'],
-                     title='Volume vs Revenue per Product')
-
-    # Q11 – category revenue + units stacked
-    plot_grouped_bar(categories, x='category',
-                     y_cols=['revenue', 'units_sold'],
-                     barmode='stack', title='Category Performance')
-    """
-    if top_n:
-        df = df.head(top_n)
-
-    fig = go.Figure()
-    for i, col in enumerate(y_cols):
-        bar_args: Dict = dict(
-            name=col,
-            marker_color=_PALETTE[i % len(_PALETTE)],
-            marker_line_width=0,
-            opacity=0.85,
-        )
-        if orientation == "v":
-            bar_args["x"] = df[x]
-            bar_args["y"] = df[col]
-        else:
-            bar_args["y"] = df[x]
-            bar_args["x"] = df[col]
-            bar_args["orientation"] = "h"
-
-        fig.add_trace(go.Bar(**bar_args))
-
-    fig.update_layout(barmode=barmode)
-    return _base(fig, title)
