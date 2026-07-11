@@ -74,7 +74,7 @@ Q35  bar_chart
 Q36  scatter_chart
 """
 
-from typing import Optional, List
+from typing import Dict, Optional
 
 import pandas as pd
 import plotly.express as px
@@ -87,11 +87,11 @@ from plotly.subplots import make_subplots
 # ============================================================
 
 def bar_chart(
-    df,
-    x,
-    y,
-    title=""
-):
+    df: pd.DataFrame,
+    x: str,
+    y: str,
+    title: str = ""
+) -> go.Figure:
     """
     Compare categories.
 
@@ -113,11 +113,11 @@ def bar_chart(
 # ============================================================
 
 def line_chart(
-    df,
-    x,
-    y,
-    title=""
-):
+    df: pd.DataFrame,
+    x: str,
+    y: str,
+    title: str = ""
+) -> go.Figure:
     """
     Show trends over time.
     """
@@ -135,12 +135,12 @@ def line_chart(
 # ============================================================
 
 def dual_axis_chart(
-    df,
-    x,
-    y_line,
-    y_bar,
-    title=""
-):
+    df: pd.DataFrame,
+    x: str,
+    y_line: str,
+    y_bar: str,
+    title: str = ""
+) -> go.Figure:
     """
     Show a metric trend alongside period-over-period change.
 
@@ -186,13 +186,13 @@ def dual_axis_chart(
 # ============================================================
 
 def scatter_chart(
-    df,
-    x,
-    y,
-    size=None,
-    color=None,
-    title=""
-):
+    df: pd.DataFrame,
+    x: str,
+    y: str,
+    size: Optional[str] = None,
+    color: Optional[str] = None,
+    title: str = ""
+) -> go.Figure:
     """
     Show relationships.
 
@@ -216,11 +216,11 @@ def scatter_chart(
 # ============================================================
 
 def distribution_chart(
-    df,
-    column,
-    chart_type="histogram",
-    title=""
-):
+    df: pd.DataFrame,
+    column: str,
+    chart_type: str = "histogram",
+    title: str = ""
+) -> Optional[go.Figure]:
     """
     Show value distribution.
     """
@@ -247,12 +247,12 @@ def distribution_chart(
 # ============================================================
 
 def pareto_chart(
-    df,
-    category,
-    value,
-    cumulative,
-    title=""
-):
+    df: pd.DataFrame,
+    category: str,
+    value: str,
+    cumulative: str,
+    title: str = ""
+) -> go.Figure:
     """
     Display concentration.
 
@@ -285,12 +285,12 @@ def pareto_chart(
 # ============================================================
 
 def heatmap(
-    df,
-    x,
-    y,
-    value,
-    title=""
-):
+    df: pd.DataFrame,
+    x: str,
+    y: str,
+    value: str,
+    title: str = ""
+) -> go.Figure:
     """
     Show two-dimensional patterns.
     """
@@ -312,11 +312,11 @@ def heatmap(
 # ============================================================
 
 def map_chart(
-    df,
-    location,
-    value,
-    title=""
-):
+    df: pd.DataFrame,
+    location: str,
+    value: str,
+    title: str = ""
+) -> go.Figure:
     """
     Geographic metric visualization.
     """
@@ -334,9 +334,9 @@ def map_chart(
 # ============================================================
 
 def kpi_cards(
-    metrics: dict,
-    title=""
-):
+    metrics: Dict[str, float],
+    title: str = ""
+) -> go.Figure:
     """
     Display important summary numbers.
 

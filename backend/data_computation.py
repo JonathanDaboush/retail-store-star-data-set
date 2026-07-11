@@ -76,14 +76,14 @@ Q35  aggregate_multiple_metrics, weighted_score
 Q36  aggregate_multiple_metrics, calculate_ratio, weighted_score
 """
 
-from typing import Dict, Optional, Union, List
+from typing import Any, cast, Dict, Optional, Union, List
 
 import numpy as np
 import pandas as pd
 from scipy import stats
 
 
-Numeric = Union[pd.Series, np.ndarray, list]
+Numeric = Union[pd.Series, np.ndarray, List[Any]]
 
 
 # ============================================================
@@ -120,7 +120,7 @@ def standard_deviation(values: Numeric) -> float:
     return pd.Series(values).std()
 
 
-def summary_statistics(values: Numeric) -> Dict:
+def summary_statistics(values: Numeric) -> Dict[str, Any]:
     """
     Generate common descriptive statistics.
 
@@ -239,7 +239,7 @@ def aggregate_metric(
 def aggregate_multiple_metrics(
     df: pd.DataFrame,
     group_column: str,
-    metrics: Dict
+    metrics: Dict[str, Any]
 ) -> pd.DataFrame:
     """
     Aggregate multiple metrics together.
@@ -357,7 +357,7 @@ def trend_slope(values: Numeric) -> float:
         y
     )
 
-    return slope
+    return cast(float, slope)
 
 
 # ============================================================
@@ -389,7 +389,7 @@ def cumulative_percentage(values: Numeric) -> pd.Series:
     )
 
 
-def concentration_analysis(values: Numeric) -> Dict:
+def concentration_analysis(values: Numeric) -> Dict[str, Any]:
     """
     Measure how concentrated a metric is across entities.
 
@@ -411,7 +411,7 @@ def concentration_analysis(values: Numeric) -> Dict:
 
     total_val = s.sum()
     n = len(s)
-    result = {}
+    result: Dict[str, Any] = {}
 
     for pct in [0.01, 0.05, 0.10]:
         top_n = max(1, int(np.ceil(n * pct)))
@@ -460,7 +460,7 @@ def pareto_table(
 def correlation(
     x: Numeric,
     y: Numeric
-) -> Dict:
+) -> Dict[str, Any]:
     """
     Calculate relationship between variables.
     """
@@ -473,15 +473,8 @@ def correlation(
     ).dropna()
 
     return {
-        "pearson": stats.pearsonr(
-            df.x,
-            df.y
-        )[0],
-
-        "spearman": stats.spearmanr(
-            df.x,
-            df.y
-        )[0]
+        "pearson": stats.pearsonr(df.x, df.y)[0],
+        "spearman": stats.spearmanr(df.x, df.y)[0],
     }
 
 
@@ -567,8 +560,8 @@ def delivery_duration(
     """
 
     return (
-        pd.to_datetime(delivered_dates)
-        - pd.to_datetime(purchase_dates)
+        pd.Series(pd.to_datetime(delivered_dates))
+        - pd.Series(pd.to_datetime(purchase_dates))
     ).dt.days
 
 
@@ -589,12 +582,12 @@ def delivery_delay(
     """
 
     return (
-        pd.to_datetime(actual_dates)
-        - pd.to_datetime(estimated_dates)
+        pd.Series(pd.to_datetime(actual_dates))
+        - pd.Series(pd.to_datetime(estimated_dates))
     ).dt.days
 
 
-def delivery_status_rates(delay_days: Numeric) -> Dict:
+def delivery_status_rates(delay_days: Numeric) -> Dict[str, Any]:
     """
     Calculate early, on-time, and late delivery rates.
 

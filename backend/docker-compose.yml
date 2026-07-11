@@ -1,0 +1,332 @@
+version: "3.9"
+
+services:
+
+  # ==========================================================
+  # MYSQL BUSINESS DATABASE
+  # ==========================================================
+
+  mysql:
+
+    image: mysql:8.0
+
+    container_name: mysql-container
+
+    restart: unless-stopped
+
+
+    env_file:
+      - .env
+
+
+    environment:
+
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+
+      MYSQL_USER: ${MYSQL_USER}
+
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
+
+    ports:
+
+      - "${MYSQL_PORT}:3306"
+
+
+    volumes:
+
+      - mysql_data:/var/lib/mysql
+
+
+    healthcheck:
+
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost"
+        ]
+
+      interval: 10s
+
+      timeout: 5s
+
+      retries: 10
+
+
+    networks:
+
+      - data-network
+
+
+
+  # ==========================================================
+  # AIRFLOW METADATA DATABASE
+  # ==========================================================
+
+  postgres:
+
+    image: postgres:15
+
+    container_name: airflow-postgres
+
+    restart: unless-stopped
+
+
+    environment:
+
+      POSTGRES_USER: ${POSTGRES_USER}
+
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+      POSTGRES_DB: ${POSTGRES_DB}
+
+
+    volumes:
+
+      - postgres_data:/var/lib/postgresql/data
+
+
+    healthcheck:
+
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER}"
+        ]
+
+      interval: 10s
+
+      timeout: 5s
+
+      retries: 10
+
+
+    networks:
+
+      - data-network
+
+
+
+  # ==========================================================
+  # AIRFLOW INITIALIZATION
+  # ==========================================================
+
+  airflow-init:
+
+    build:
+
+      context: ./airflow
+
+
+    container_name: airflow-init
+
+
+    depends_on:
+
+      postgres:
+
+        condition: service_healthy
+
+
+    environment:
+
+      AIRFLOW_UID: ${AIRFLOW_UID}
+
+
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN:
+        postgresql+psycopg2://airflow:airflow@postgres/airflow
+
+
+      AIRFLOW__CORE__EXECUTOR:
+        LocalExecutor
+
+
+    command: >
+      bash -c "
+      airflow db migrate &&
+      airflow users create
+      --username ${AIRFLOW_USER}
+      --firstname Admin
+      --lastname User
+      --role Admin
+      --email ${AIRFLOW_EMAIL}
+      --password ${AIRFLOW_PASSWORD}
+      "
+
+
+    networks:
+
+      - data-network
+
+
+
+  # ==========================================================
+  # AIRFLOW WEBSERVER
+  # ==========================================================
+
+  airflow-webserver:
+
+    build:
+
+      context: ./airflow
+
+
+    container_name: airflow-webserver
+
+
+    restart: unless-stopped
+
+
+    depends_on:
+
+      airflow-init:
+
+        condition: service_completed_successfully
+
+
+      mysql:
+
+        condition: service_healthy
+
+
+      postgres:
+
+        condition: service_healthy
+
+
+
+    environment:
+
+      AIRFLOW_UID: ${AIRFLOW_UID}
+
+
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN:
+        postgresql+psycopg2://airflow:airflow@postgres/airflow
+
+
+      AIRFLOW__CORE__EXECUTOR:
+        LocalExecutor
+
+
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+
+
+
+    ports:
+
+      - "8080:8080"
+
+
+
+    volumes:
+
+      - ./dags:/opt/airflow/dags
+
+      - ./scripts:/opt/airflow/scripts
+
+      - ./logs:/opt/airflow/logs
+
+
+
+    command:
+
+      airflow webserver
+
+
+
+    networks:
+
+      - data-network
+
+
+
+  # ==========================================================
+  # AIRFLOW SCHEDULER
+  # ==========================================================
+
+  airflow-scheduler:
+
+    build:
+
+      context: ./airflow
+
+
+    container_name: airflow-scheduler
+
+
+    restart: unless-stopped
+
+
+    depends_on:
+
+      airflow-webserver:
+
+        condition: service_started
+
+
+
+    environment:
+
+      AIRFLOW_UID: ${AIRFLOW_UID}
+
+
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN:
+        postgresql+psycopg2://airflow:airflow@postgres/airflow
+
+
+      AIRFLOW__CORE__EXECUTOR:
+        LocalExecutor
+
+
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+
+
+
+    volumes:
+
+      - ./dags:/opt/airflow/dags
+
+      - ./scripts:/opt/airflow/scripts
+
+      - ./logs:/opt/airflow/logs
+
+
+
+    command:
+
+      airflow scheduler
+
+
+
+    networks:
+
+      - data-network
+
+
+
+# ==========================================================
+# STORAGE
+# ==========================================================
+
+volumes:
+
+  mysql_data:
+
+  postgres_data:
+
+
+
+# ==========================================================
+# NETWORK
+# ==========================================================
+
+networks:
+
+  data-network:
+
+    driver: bridge
