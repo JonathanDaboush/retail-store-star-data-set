@@ -331,34 +331,3 @@ def top_n(task: str, df: pd.DataFrame, column: str, group: str, n: int = 10, **k
     return analyze(task, df, column=column, group_column=group, top_n=n, **kwargs)
 
 
-# ============================================================
-# EXAMPLE USAGE
-# ============================================================
-
-if __name__ == "__main__":
-    # Create sample data
-    df_sample = pd.DataFrame({
-        "date": pd.date_range("2024-01-01", periods=100, freq="D"),
-        "seller": ["A", "B", "C", "D"] * 25,
-        "revenue": np.random.randint(100, 1000, 100),
-        "rating": np.random.uniform(3, 5, 100)
-    })
-    
-    # Example calls
-    print("Example 1: Total revenue")
-    fig1 = analyze("total revenue", df_sample, column="revenue")
-    # fig1.show()
-    
-    print("\nExample 2: Revenue by seller")
-    fig2 = analyze("revenue by seller", df_sample, column="revenue", group_column="seller")
-    # fig2.show()
-    
-    print("\nExample 3: Monthly revenue trend")
-    fig3 = analyze("monthly revenue trend", df_sample, column="revenue", date_column="date")
-    # fig3.show()
-    
-    print("\nExample 4: Top 3 sellers pareto")
-    fig4 = analyze("top 3 sellers pareto", df_sample, column="revenue", group_column="seller", top_n=3)
-    # fig4.show()
-    
-    print("\nAll examples completed!")
