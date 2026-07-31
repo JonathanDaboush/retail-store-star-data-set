@@ -1,6 +1,14 @@
-# ============================================================
-# FEATURE ENGINEERING
-# ============================================================
+import numpy as np
+import pandas as pd
+import os
+
+TARGET_MAP = {
+    "churn": ["churn_label"],
+    "ltv": ["customer_ltv"],
+    "demand": ["total_units_sold", "total_revenue"],
+    "forecast": ["future_revenue"],
+    "recommendation": [],
+}
 
 def create_customer_features(df_sales, df_customers):
 
@@ -187,3 +195,4 @@ def clean_all_ml_training_datasets(final_ml_datasets):
         cleaned_ml[name] = cleaned
 
     return cleaned_ml
+

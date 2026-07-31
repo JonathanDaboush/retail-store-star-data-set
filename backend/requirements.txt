@@ -21,3 +21,6 @@ pandas-stubs
 
 sqlalchemy>=2.0.0
 kafka-python-ng>=2.2.3
+
+xgboost>=3.0.0
+lightgbm>=4.5.0

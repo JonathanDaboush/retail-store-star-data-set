@@ -1,6 +1,5 @@
-# ============================================================
-# FINAL MODEL-READY DATASETS
-# ============================================================
+import pandas as pd
+
 
 def create_final_churn_dataset(customer_features, df_customers):
 
