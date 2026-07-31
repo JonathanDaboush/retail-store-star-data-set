@@ -1,0 +1,277 @@
+[2026-07-17T20:12:46.604+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-17T20:12:46.605+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-17T20:12:46.606+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-17T20:12:46.607+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T20:12:46.612+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T20:17:46.976+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T20:17:46.979+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T20:22:47.287+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T20:22:47.290+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T20:25:03.143+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-17T20:26:12.501+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-17T20:26:12.503+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-17T20:26:12.504+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-17T20:26:12.505+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T20:26:12.509+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T20:31:12.886+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T20:31:12.890+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T20:36:13.224+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T20:36:13.227+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T20:41:13.577+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T20:41:13.579+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T20:46:30.396+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-17T20:46:30.397+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-17T20:46:30.398+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-17T20:46:30.399+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T20:46:30.404+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T20:51:30.742+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T20:51:30.767+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T20:56:31.109+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T20:56:31.115+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T21:01:31.451+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T21:01:31.453+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T21:04:32.475+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-17T21:05:32.786+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-17T21:05:32.788+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-17T21:05:32.789+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-17T21:05:32.790+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T21:05:32.794+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T21:10:33.152+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T21:10:33.156+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T21:14:49.152+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-17T21:15:39.960+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-17T21:15:39.961+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-17T21:15:39.963+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-17T21:15:39.964+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T21:15:39.968+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T21:20:40.362+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T21:20:40.365+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T21:25:40.705+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T21:25:40.708+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T21:30:41.053+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T21:30:41.057+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T21:34:48.926+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-17T21:35:39.109+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-17T21:35:39.110+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-17T21:35:39.111+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-17T21:35:39.112+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T21:35:39.116+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T21:36:37.531+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-17T21:38:55.418+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-17T21:38:55.420+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-17T21:38:55.421+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-17T21:38:55.423+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T21:38:55.427+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T21:43:55.821+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T21:43:55.825+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T21:47:27.253+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-17T21:51:36.845+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-17T21:51:36.846+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-17T21:51:36.847+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-17T21:51:36.848+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T21:51:36.852+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T21:56:37.209+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T21:56:37.213+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T22:01:37.882+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T22:01:37.886+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T22:06:38.248+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T22:06:38.251+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T22:07:45.923+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-17T22:08:44.602+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-17T22:08:44.603+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-17T22:08:44.605+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-17T22:08:44.605+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T22:08:44.610+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T22:13:44.961+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T22:13:44.967+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T22:18:45.320+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T22:18:45.327+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T22:22:24.420+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-17T22:23:39.570+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-17T22:23:39.571+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-17T22:23:39.572+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-17T22:23:39.573+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T22:23:39.577+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T22:28:39.965+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T22:28:39.972+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T22:33:40.368+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T22:33:40.371+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T22:38:40.735+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T22:38:40.741+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T22:43:41.110+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T22:43:41.114+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T22:47:45.013+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-17T22:48:44.195+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-17T22:48:44.197+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-17T22:48:44.198+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-17T22:48:44.199+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T22:48:44.204+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T23:49:37.565+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-17T23:49:37.566+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-17T23:49:37.567+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-17T23:49:37.568+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T23:49:37.572+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T23:54:37.937+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T23:54:37.941+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-17T23:59:38.283+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-17T23:59:38.286+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T00:04:38.611+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T00:04:38.613+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T00:09:38.968+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T00:09:38.971+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T00:12:44.839+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-18T00:14:26.059+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-18T00:14:26.061+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-18T00:14:26.062+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-18T00:14:26.062+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T00:14:26.066+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T00:15:28.400+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-18T00:17:20.699+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-18T00:17:20.701+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-18T00:17:20.702+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-18T00:17:20.703+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T00:17:20.708+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T00:22:21.052+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T00:22:21.055+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T00:27:21.405+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T00:27:21.409+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T00:31:15.831+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-18T00:32:18.787+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-18T00:32:18.788+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-18T00:32:18.789+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-18T00:32:18.791+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T00:32:18.796+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T00:37:19.175+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T00:37:19.178+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T00:42:19.506+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T00:42:19.510+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T00:47:19.891+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T00:47:19.895+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T00:52:20.243+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T00:52:20.246+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T00:53:06.980+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-18T00:53:58.454+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-18T00:53:58.455+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-18T00:53:58.456+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-18T00:53:58.457+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T00:53:58.463+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T00:58:58.831+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T00:58:58.837+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T19:42:27.366+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-18T19:42:27.368+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-18T19:42:27.369+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-18T19:42:27.370+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T19:42:27.374+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T19:43:53.905+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-18T19:47:17.994+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-18T19:47:17.996+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-18T19:47:17.997+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-18T19:47:17.999+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T19:47:18.005+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T19:52:18.375+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T19:52:18.378+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T19:57:18.717+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T19:57:18.724+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T20:02:19.028+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T20:02:19.037+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T20:07:19.387+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T20:07:19.393+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T20:08:59.925+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-18T20:11:50.958+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-18T20:11:50.959+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-18T20:11:50.960+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-18T20:11:50.961+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T20:11:50.965+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T20:16:51.334+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T20:16:51.337+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T20:21:51.659+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T20:21:51.662+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T20:26:51.985+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T20:26:51.988+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T20:31:52.334+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T20:31:52.337+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T20:36:52.675+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T20:36:52.678+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T20:41:53.017+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T20:41:53.020+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T20:46:53.384+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T20:46:53.388+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T20:51:53.758+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T20:51:53.761+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T20:56:54.096+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T20:56:54.100+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T21:01:54.466+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T21:01:54.474+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T21:06:54.840+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T21:06:54.846+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T21:10:03.504+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-18T21:10:58.078+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-18T21:10:58.079+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-18T21:10:58.081+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-18T21:10:58.082+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T21:10:58.087+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T21:15:58.474+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T21:15:58.482+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T21:20:58.809+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T21:20:58.828+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T21:25:59.165+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T21:25:59.175+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T21:30:59.537+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T21:30:59.541+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T21:35:59.901+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T21:35:59.904+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T21:41:00.253+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T21:41:00.257+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T21:46:00.608+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T21:46:00.611+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T21:51:00.947+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T21:51:00.950+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T21:56:01.286+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T21:56:01.290+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T21:59:05.967+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-18T22:00:01.514+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-18T22:00:01.515+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-18T22:00:01.517+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-18T22:00:01.518+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T22:00:01.523+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T22:01:16.882+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-18T22:02:23.397+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-18T22:02:23.398+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-18T22:02:23.399+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-18T22:02:23.400+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T22:02:23.404+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T22:07:23.759+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T22:07:23.763+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T22:10:46.832+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-18T22:12:21.717+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-18T22:12:21.719+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-18T22:12:21.720+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-18T22:12:21.721+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T22:12:21.726+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T22:17:22.112+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T22:17:22.116+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T22:19:02.170+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-18T22:20:11.784+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-18T22:20:11.785+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-18T22:20:11.786+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-18T22:20:11.787+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T22:20:11.792+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T22:25:12.147+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T22:25:12.155+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T22:27:33.194+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-18T22:29:08.878+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-18T22:29:08.880+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-18T22:29:08.881+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-18T22:29:08.883+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T22:29:08.887+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T22:34:09.274+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T22:34:09.280+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T22:39:09.646+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T22:39:09.648+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T22:41:43.352+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15
+[2026-07-18T22:42:37.083+0000] {manager.py:483} INFO - Processing files using up to 2 processes at a time 
+[2026-07-18T22:42:37.085+0000] {manager.py:484} INFO - Process each file at most once every 30 seconds
+[2026-07-18T22:42:37.086+0000] {manager.py:485} INFO - Checking for new files in /opt/airflow/dags every 300 seconds
+[2026-07-18T22:42:37.087+0000] {manager.py:821} INFO - Searching for files in /opt/airflow/dags
+[2026-07-18T22:42:37.092+0000] {manager.py:824} INFO - There are 0 files in /opt/airflow/dags
+[2026-07-18T22:43:27.425+0000] {manager.py:465} INFO - Exiting gracefully upon receiving signal 15

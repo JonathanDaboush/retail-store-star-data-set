@@ -1,0 +1,37 @@
+{
+  "fact_sales": {
+    "pk_column": "sales_sk",
+    "used_count": 5000,
+    "unused_count": 995000
+  },
+  "customers": {
+    "pk_column": "customer_sk",
+    "used_count": 4873,
+    "unused_count": 95127
+  },
+  "products": {
+    "pk_column": "product_sk",
+    "used_count": 210,
+    "unused_count": 0
+  },
+  "stores": {
+    "pk_column": "store_sk",
+    "used_count": 500,
+    "unused_count": 0
+  },
+  "salespersons": {
+    "pk_column": "salesperson_sk",
+    "used_count": 1839,
+    "unused_count": 161
+  },
+  "campaigns": {
+    "pk_column": "campaign_sk",
+    "used_count": 4,
+    "unused_count": 46
+  },
+  "dates": {
+    "pk_column": "full_date",
+    "used_count": 4991,
+    "unused_count": 366
+  }
+}

@@ -1,0 +1,237 @@
+1. Docker Commands
+Start all Docker services
+Run from the folder containing:
+
+docker-compose.yml
+Command:
+
+docker compose up -d
+What it does:
+Starts MySQL
+Starts Kafka
+Starts Airflow/Postgres (if included)
+Runs containers in background (-d = detached)
+Start with rebuilding images
+Use after changing Dockerfiles or dependencies:
+
+docker compose up --build -d
+Stop Docker services
+docker compose down
+What it does:
+Stops containers
+Removes containers
+Keeps volumes/data
+Stop and remove everything including database data
+⚠️ Deletes database volumes:
+
+docker compose down -v
+See running containers
+docker ps
+Example:
+
+mysql-container
+kafka-container
+airflow-webserver
+See all containers (including stopped)
+docker ps -a
+View logs
+All services:
+
+docker compose logs
+Follow live logs:
+
+docker compose logs -f
+Specific service:
+
+docker compose logs -f mysql
+Example:
+
+docker compose logs -f kafka
+Restart a service
+docker compose restart service_name
+Example:
+
+docker compose restart mysql
+Enter a container shell
+Example MySQL:
+
+docker exec -it mysql-container bash
+2. Backend (FastAPI) Commands
+Activate virtual environment (Windows)
+PowerShell:
+
+.\ve.venv\Scripts\Activate.ps1
+Install Python packages
+pip install -r requirements.txt
+Start FastAPI
+From project root:
+
+uvicorn backend.main:app --reload
+Meaning:
+
+backend = folder
+main = main.py
+app = FastAPI object
+Test FastAPI
+Browser:
+
+http://localhost:8000/docs
+Swagger UI:
+
+http://localhost:8000/docs
+Example endpoint:
+
+http://localhost:8000/users
+3. React + npm Commands
+Go into frontend:
+
+cd frontend
+Install packages
+First time only:
+
+npm install
+Reads:
+
+package.json
+Creates:
+
+node_modules/
+package-lock.json
+Start React development server
+npm run dev
+Usually:
+
+http://localhost:5173
+Build React production version
+npm run build
+Check npm version
+npm -v
+Check Node version
+node -v
+Install a package
+Example Axios:
+
+npm install axios
+Example Tailwind packages:
+
+npm install -D tailwindcss
+Remove package
+npm uninstall package-name
+4. Finding Ports
+A port is a communication door.
+
+Common ports:
+
+Service	Port
+React	5173
+FastAPI	8000
+Airflow	8080
+MySQL	3306
+Kafka	9092
+PostgreSQL	5432
+Windows: Find what is using a port
+Example port 8000:
+
+netstat -ano | findstr :8000
+Output:
+
+TCP 0.0.0.0:8000 LISTENING 12345
+The last number is the PID.
+
+Example:
+
+12345
+Kill a process by PID
+Windows:
+
+taskkill /PID 12345 /F
+Example:
+
+taskkill /PID 12480 /F
+Find process name by port
+Example:
+
+Get-Process -Id 12345
+Kill React/Vite if stuck
+Find:
+
+netstat -ano | findstr :5173
+Kill:
+
+taskkill /PID NUMBER /F
+Kill FastAPI if stuck
+Find:
+
+netstat -ano | findstr :8000
+Kill:
+
+taskkill /PID NUMBER /F
+5. Checking if Services Are Alive
+Docker
+docker ps
+FastAPI
+Open:
+
+http://localhost:8000/docs
+React
+Open:
+
+http://localhost:5173
+MySQL
+Check container:
+
+docker logs mysql-container
+Kafka
+Check:
+
+docker logs kafka-container
+6. Your Normal Daily Startup
+Kafka Project
+Terminal 1
+docker compose up -d
+Terminal 2
+.\ve.venv\Scripts\Activate.ps1
+
+uvicorn backend.main:app --reload
+Terminal 3
+cd frontend
+
+npm install   # only first time
+
+npm run dev
+Terminal 4
+Kafka consumer:
+
+python backend/kafka/consumer.py
+7. Your Normal Shutdown
+Stop React:
+
+CTRL + C
+Stop FastAPI:
+
+CTRL + C
+Stop Kafka consumer:
+
+CTRL + C
+Stop Docker:
+
+docker compose down
+8. Debugging Order (Important)
+When something breaks, check in this order:
+
+1. Is Docker running?
+        |
+        ▼
+2. Is backend running?
+        |
+        ▼
+3. Does FastAPI endpoint work?
+        |
+        ▼
+4. Is React running?
+        |
+        ▼
+5. Is Kafka consumer running?
+Do not debug React if FastAPI is down.
+
+Do not debug FastAPI if MySQL/Kafka containers are stopped.
