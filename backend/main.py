@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import threading
@@ -37,6 +38,7 @@ app.add_middleware(
 
 replay_lock = threading.Lock()
 replay_thread: threading.Thread | None = None
+log = logging.getLogger(__name__)
 
 
 class ReplayRequest(BaseModel):
@@ -132,6 +134,7 @@ def setup() -> None:
                 CREATE TABLE IF NOT EXISTS failed_events (
                     id BIGINT AUTO_INCREMENT PRIMARY KEY,
                     event_id VARCHAR(128) NULL,
+                    dedupe_key VARCHAR(180) NULL UNIQUE,
                     reason VARCHAR(512) NOT NULL,
                     payload_json LONGTEXT NULL,
                     kafka_offset BIGINT NULL,
@@ -140,6 +143,14 @@ def setup() -> None:
                 """
             )
         )
+        for migration in [
+            "ALTER TABLE failed_events ADD COLUMN dedupe_key VARCHAR(180) NULL",
+            "ALTER TABLE failed_events ADD UNIQUE KEY ux_failed_events_dedupe (dedupe_key)",
+        ]:
+            try:
+                c.execute(text(migration))
+            except Exception:
+                pass
         c.execute(
             text(
                 """
@@ -210,9 +221,18 @@ def normalized_replay_state() -> dict[str, Any]:
     if state.get("started_at"):
         started = pd.to_datetime(state["started_at"], utc=True)
         elapsed = max((datetime.now(timezone.utc) - started).total_seconds(), 0.0)
-    state["processing_rate_eps"] = round((state.get("events_consumed") or 0) / elapsed, 3) if elapsed else 0.0
+    state["processing_rate_eps"] = round((state.get("events_consumed") or 0) / elapsed, 3) if elapsed and elapsed >= 1.0 else 0.0
     state["lag_events"] = max(0, (state.get("events_published") or 0) - (state.get("events_consumed") or 0))
     return state
+
+
+def start_worker_if_needed() -> None:
+    global replay_thread
+    with replay_lock:
+        if replay_thread and replay_thread.is_alive():
+            return
+        replay_thread = threading.Thread(target=publish_batch_worker, daemon=True)
+        replay_thread.start()
 
 
 def build_replay_event(row: dict[str, Any], batch_mode: str, batch_value: str | None) -> dict[str, Any]:
@@ -243,82 +263,127 @@ def build_replay_event(row: dict[str, Any], batch_mode: str, batch_value: str | 
     }
 
 
+def record_publish_failure(event: dict[str, Any], reason: str) -> None:
+    dedupe_key = hashlib.sha256(f"{event.get('event_id')}|publish|{reason[:160]}".encode("utf-8")).hexdigest()
+    with engine.begin() as c:
+        inserted = c.execute(
+            text(
+                """
+                INSERT IGNORE INTO failed_events (event_id, dedupe_key, reason, payload_json, kafka_offset, failed_at)
+                VALUES (:event_id, :dedupe_key, :reason, :payload_json, NULL, UTC_TIMESTAMP())
+                """
+            ),
+            {
+                "event_id": event.get("event_id"),
+                "dedupe_key": dedupe_key,
+                "reason": reason[:512],
+                "payload_json": json.dumps(event, default=str)[:65000],
+            },
+        ).rowcount
+        if inserted:
+            c.execute(
+                text(
+                    """
+                    UPDATE replay_state
+                    SET failed_events = failed_events + 1, updated_at = UTC_TIMESTAMP()
+                    WHERE id=1
+                    """
+                )
+            )
+
+
 def publish_batch_worker() -> None:
     from controller.producer import send_event
 
     while True:
-        state = normalized_replay_state()
-        if state["status"] != "running":
-            return
+        try:
+            state = normalized_replay_state()
+            if state["status"] != "running":
+                return
 
-        batch_frame = selected_frame(state["batch_mode"], state["batch_value"]) 
-        total_events = len(batch_frame)
-        if state["next_offset"] >= total_events:
+            batch_frame = selected_frame(state["batch_mode"], state["batch_value"])
+            total_events = len(batch_frame)
+            if state["next_offset"] >= total_events:
+                with engine.begin() as c:
+                    c.execute(
+                        text(
+                            """
+                            UPDATE replay_state
+                            SET status='completed', total_events=:total_events, updated_at=UTC_TIMESTAMP()
+                            WHERE id=1
+                            """
+                        ),
+                        {"total_events": total_events},
+                    )
+                return
+
+            start_offset = state["next_offset"]
+            batch_size = int(state["batch_size"])
+            end_offset = min(start_offset + batch_size, total_events)
+            chunk = batch_frame.iloc[start_offset:end_offset]
+
+            published = 0
+            for _, row in chunk.iterrows():
+                event = build_replay_event(row.to_dict(), state["batch_mode"], state["batch_value"])
+                sent = send_event(event)
+                if not sent:
+                    record_publish_failure(event, f"Kafka publish failed for event_id={event['event_id']}")
+                    continue
+                published += 1
+
             with engine.begin() as c:
                 c.execute(
                     text(
                         """
                         UPDATE replay_state
-                        SET status='completed', total_events=:total_events, updated_at=UTC_TIMESTAMP()
+                        SET next_offset=:next_offset,
+                            total_events=:total_events,
+                            events_published=events_published+:published,
+                            last_batch_size=:published,
+                            last_batch_published=UTC_TIMESTAMP(),
+                            updated_at=UTC_TIMESTAMP(),
+                            last_error=NULL
                         WHERE id=1
                         """
                     ),
-                    {"total_events": total_events},
+                    {
+                        "next_offset": end_offset,
+                        "total_events": total_events,
+                        "published": published,
+                    },
+                )
+                c.execute(
+                    text(
+                        """
+                        INSERT INTO replay_batches
+                        (batch_mode, batch_value, batch_size, published_count, started_offset, ended_offset, published_at)
+                        VALUES (:batch_mode, :batch_value, :batch_size, :published_count, :started_offset, :ended_offset, UTC_TIMESTAMP())
+                        """
+                    ),
+                    {
+                        "batch_mode": state["batch_mode"],
+                        "batch_value": state["batch_value"],
+                        "batch_size": batch_size,
+                        "published_count": published,
+                        "started_offset": start_offset,
+                        "ended_offset": end_offset,
+                    },
+                )
+
+            time.sleep(float(state["interval_seconds"]))
+        except Exception as exc:  # noqa: BLE001
+            with engine.begin() as c:
+                c.execute(
+                    text(
+                        """
+                        UPDATE replay_state
+                        SET status='failed', last_error=:error, updated_at=UTC_TIMESTAMP()
+                        WHERE id=1
+                        """
+                    ),
+                    {"error": str(exc)[:2000]},
                 )
             return
-
-        start_offset = state["next_offset"]
-        batch_size = int(state["batch_size"])
-        end_offset = min(start_offset + batch_size, total_events)
-        chunk = batch_frame.iloc[start_offset:end_offset]
-
-        published = 0
-        for _, row in chunk.iterrows():
-            event = build_replay_event(row.to_dict(), state["batch_mode"], state["batch_value"])
-            if not send_event(event):
-                raise RuntimeError(f"Kafka publish failed for event_id={event['event_id']}")
-            published += 1
-
-        with engine.begin() as c:
-            c.execute(
-                text(
-                    """
-                    UPDATE replay_state
-                    SET next_offset=:next_offset,
-                        total_events=:total_events,
-                        events_published=events_published+:published,
-                        last_batch_size=:published,
-                        last_batch_published=UTC_TIMESTAMP(),
-                        updated_at=UTC_TIMESTAMP(),
-                        last_error=NULL
-                    WHERE id=1
-                    """
-                ),
-                {
-                    "next_offset": end_offset,
-                    "total_events": total_events,
-                    "published": published,
-                },
-            )
-            c.execute(
-                text(
-                    """
-                    INSERT INTO replay_batches
-                    (batch_mode, batch_value, batch_size, published_count, started_offset, ended_offset, published_at)
-                    VALUES (:batch_mode, :batch_value, :batch_size, :published_count, :started_offset, :ended_offset, UTC_TIMESTAMP())
-                    """
-                ),
-                {
-                    "batch_mode": state["batch_mode"],
-                    "batch_value": state["batch_value"],
-                    "batch_size": batch_size,
-                    "published_count": published,
-                    "started_offset": start_offset,
-                    "ended_offset": end_offset,
-                },
-            )
-
-        time.sleep(float(state["interval_seconds"]))
 
 
 @app.get("/health")
@@ -327,7 +392,8 @@ def health() -> dict[str, Any]:
         scalar("SELECT 1")
         return {"status": "Healthy", "database": "connected", "timestamp": datetime.now(timezone.utc)}
     except Exception as exc:  # noqa: BLE001
-        return {"status": "Failed", "database": "unavailable", "detail": str(exc)}
+        log.exception("Health check failed")
+        return {"status": "Failed", "database": "unavailable", "detail": "Database check failed"}
 
 
 @app.get("/dashboard")
@@ -443,8 +509,6 @@ def replay_options() -> dict[str, Any]:
 
 @app.post("/replay/start")
 def start_replay(request: ReplayRequest) -> dict[str, Any]:
-    global replay_thread
-
     frame = selected_frame(request.batch_mode, request.batch_value)
     total_events = int(len(frame))
     if total_events == 0:
@@ -486,24 +550,19 @@ def start_replay(request: ReplayRequest) -> dict[str, Any]:
             },
         )
 
-    with replay_lock:
-        replay_thread = threading.Thread(target=publish_batch_worker, daemon=True)
-        replay_thread.start()
+    start_worker_if_needed()
 
     return normalized_replay_state()
 
 
 @app.post("/replay/control")
 def control_replay(request: ReplayAction) -> dict[str, Any]:
-    global replay_thread
     status = {"pause": "paused", "resume": "running", "stop": "stopped"}[request.action]
     with engine.begin() as c:
         c.execute(text("UPDATE replay_state SET status=:status,updated_at=UTC_TIMESTAMP() WHERE id=1"), {"status": status})
 
     if request.action == "resume":
-        with replay_lock:
-            replay_thread = threading.Thread(target=publish_batch_worker, daemon=True)
-            replay_thread.start()
+        start_worker_if_needed()
 
     return normalized_replay_state()
 

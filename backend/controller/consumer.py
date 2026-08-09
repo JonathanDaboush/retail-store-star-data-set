@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import hashlib
 from datetime import datetime, timezone
 from typing import Any, Dict
 
@@ -47,6 +48,7 @@ def setup_tables() -> None:
                 CREATE TABLE IF NOT EXISTS failed_events (
                     id BIGINT AUTO_INCREMENT PRIMARY KEY,
                     event_id VARCHAR(128) NULL,
+                    dedupe_key VARCHAR(180) NULL UNIQUE,
                     reason VARCHAR(512) NOT NULL,
                     payload_json LONGTEXT NULL,
                     kafka_offset BIGINT NULL,
@@ -64,9 +66,16 @@ def setup_tables() -> None:
                     next_offset INT NOT NULL DEFAULT 0,
                     batch_size INT NOT NULL DEFAULT 100,
                     interval_seconds DECIMAL(10,2) NOT NULL DEFAULT 5,
+                    batch_mode VARCHAR(16) NOT NULL DEFAULT 'events',
+                    batch_value VARCHAR(64) NULL,
+                    total_events INT NOT NULL DEFAULT 0,
                     events_published INT NOT NULL DEFAULT 0,
                     events_consumed INT NOT NULL DEFAULT 0,
                     failed_events INT NOT NULL DEFAULT 0,
+                    last_batch_size INT NOT NULL DEFAULT 0,
+                    last_batch_published DATETIME NULL,
+                    started_at DATETIME NULL,
+                    last_error TEXT NULL,
                     updated_at DATETIME NOT NULL
                 )
                 """
@@ -76,8 +85,8 @@ def setup_tables() -> None:
             text(
                 """
                 INSERT IGNORE INTO replay_state
-                (id,status,next_offset,batch_size,interval_seconds,events_published,events_consumed,failed_events,updated_at)
-                VALUES (1,'idle',0,100,5,0,0,0,UTC_TIMESTAMP())
+                (id,status,next_offset,batch_size,interval_seconds,batch_mode,batch_value,total_events,events_published,events_consumed,failed_events,last_batch_size,last_batch_published,started_at,last_error,updated_at)
+                VALUES (1,'idle',0,100,5,'events',NULL,0,0,0,0,0,NULL,NULL,NULL,UTC_TIMESTAMP())
                 """
             )
         )
@@ -102,30 +111,34 @@ def validate_event(event: Dict[str, Any]) -> Dict[str, Any]:
 def record_failure(message_value: Any, reason: str, kafka_offset: int | None) -> None:
     event_id = message_value.get("event_id") if isinstance(message_value, dict) else None
     payload_json = json.dumps(message_value, default=str)[:65000]
+    fingerprint_source = f"{event_id}|{kafka_offset}|{reason[:160]}"
+    dedupe_key = hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest()
     with engine.begin() as conn:
-        conn.execute(
+        inserted = conn.execute(
             text(
                 """
-                INSERT INTO failed_events (event_id, reason, payload_json, kafka_offset, failed_at)
-                VALUES (:event_id, :reason, :payload_json, :kafka_offset, UTC_TIMESTAMP())
+                INSERT IGNORE INTO failed_events (event_id, dedupe_key, reason, payload_json, kafka_offset, failed_at)
+                VALUES (:event_id, :dedupe_key, :reason, :payload_json, :kafka_offset, UTC_TIMESTAMP())
                 """
             ),
             {
                 "event_id": event_id,
+                "dedupe_key": dedupe_key,
                 "reason": reason[:512],
                 "payload_json": payload_json,
                 "kafka_offset": kafka_offset,
             },
-        )
-        conn.execute(
-            text(
-                """
-                UPDATE replay_state
-                SET failed_events = failed_events + 1, updated_at = UTC_TIMESTAMP()
-                WHERE id = 1
-                """
+        ).rowcount
+        if inserted:
+            conn.execute(
+                text(
+                    """
+                    UPDATE replay_state
+                    SET failed_events = failed_events + 1, updated_at = UTC_TIMESTAMP()
+                    WHERE id = 1
+                    """
+                )
             )
-        )
 
 
 def process(event: Dict[str, Any]) -> str:

@@ -75,6 +75,10 @@ function App() {
     if (!total) return 0;
     return Math.min(100, ((replay?.events_published || 0) / total) * 100);
   }, [replay]);
+  const revenuePeak = useMemo(
+    () => Math.max(...(dashboard?.revenue_trend?.map((y) => y.revenue) || [1]), 1),
+    [dashboard?.revenue_trend],
+  );
 
   const startReplay = async () => {
     try {
@@ -239,8 +243,7 @@ function App() {
           <div className="bars">
             {dashboard?.revenue_trend?.length ? (
               dashboard.revenue_trend.map((x) => {
-                const peak = Math.max(...dashboard.revenue_trend.map((y) => y.revenue), 1);
-                const pct = Math.max(5, (x.revenue / peak) * 100);
+                const pct = Math.max(5, (x.revenue / revenuePeak) * 100);
                 return <div key={x.date} title={`${x.date}: ${money(x.revenue)}`} style={{ height: `${pct}%` }} />;
               })
             ) : (

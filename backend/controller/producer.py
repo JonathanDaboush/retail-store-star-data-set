@@ -30,15 +30,19 @@ def get_producer() -> KafkaProducer:
 
 
 def kafka_available() -> bool:
-    admin = KafkaAdminClient(
-        bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092"),
-        request_timeout_ms=2000,
-    )
+    admin = None
     try:
+        admin = KafkaAdminClient(
+            bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092"),
+            request_timeout_ms=2000,
+        )
         admin.list_topics()
         return True
+    except Exception:
+        return False
     finally:
-        admin.close()
+        if admin is not None:
+            admin.close()
 
 
 def send_event(event: Dict[str, Any], timeout_seconds: int = 15) -> bool:

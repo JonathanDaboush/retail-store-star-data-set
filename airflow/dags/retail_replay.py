@@ -51,18 +51,21 @@ def validate_batch_selection(**context) -> dict:
         raise RuntimeError("Event bank is empty; replay cannot start.")
     if payload["batch_mode"] == "events" and payload["batch_size"] > total:
         payload["batch_size"] = total
+    context["ti"].xcom_push(key="validated_batch_payload", value=payload)
     return payload
 
 
 def publish_batch(**context) -> dict:
-    payload = context["ti"].xcom_pull(task_ids="validate_batch", key="return_value")
+    payload = context["ti"].xcom_pull(task_ids="validate_batch", key="validated_batch_payload")
+    if not payload:
+        raise RuntimeError("Validated batch payload was not available in XCom.")
     response = call("/replay/start", payload)
     if response.get("status") not in {"running", "completed"}:
         raise RuntimeError(f"Replay failed to start: {response}")
     return response
 
 
-def wait_for_consumer_processing() -> dict:
+def wait_for_consumer_processing(**context) -> dict:
     deadline = time.monotonic() + 600
     while time.monotonic() < deadline:
         replay = call("/replay")
@@ -74,7 +77,7 @@ def wait_for_consumer_processing() -> dict:
     raise TimeoutError("Consumer did not catch up within 10 minutes.")
 
 
-def refresh_incremental_analytics() -> dict:
+def refresh_incremental_analytics(**context) -> dict:
     dashboard = call("/dashboard")
     analytics = call("/analytics?task=daily_revenue")
     return {"dashboard": dashboard, "analytics": analytics}

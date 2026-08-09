@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
 
 load_dotenv()
 
@@ -28,8 +29,16 @@ DIMENSIONS = [
 def _safe_execute(connection, sql: str) -> None:
     try:
         connection.execute(text(sql))
-    except Exception:
-        pass
+    except SQLAlchemyError as exc:
+        message = str(exc).lower()
+        duplicate_markers = [
+            "duplicate",
+            "already exists",
+            "multiple primary key defined",
+        ]
+        if any(marker in message for marker in duplicate_markers):
+            return
+        raise
 
 
 def import_all_csvs() -> None:
