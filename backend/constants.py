@@ -73,7 +73,7 @@ PRIMARY_TARGET = {
 # either the exact source of the label or another target candidate
 # that would let the model trivially back the answer out.
 LEAKAGE_COLUMNS = {
-    "churn": ["days_since_last_purchase"],   # churn_label = days_since_last_purchase > 90
+    "churn": [],  # historical recency is valid when churn is labelled after the cutoff
     "ltv": ["total_spent"],                  # customer_ltv is literally a copy of total_spent
     "demand": ["total_revenue"],             # companion target to total_units_sold
     "forecast": [],

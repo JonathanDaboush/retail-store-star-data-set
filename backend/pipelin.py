@@ -54,7 +54,10 @@ import shutil
 import pickle
 import time
 
-import kagglehub
+try:
+    import kagglehub
+except ImportError:  # Local source files are the default runtime data source.
+    kagglehub = None
 import psutil
 
 from typing import Set
@@ -83,8 +86,11 @@ from sklearn.metrics import (
 from sklearn.neighbors import NearestNeighbors
 from sklearn.ensemble import RandomForestRegressor  # noqa: F401 (kept for future model swaps)
 
-from xgboost import XGBRegressor, XGBClassifier
-from lightgbm import LGBMRegressor
+try:
+    from xgboost import XGBRegressor, XGBClassifier
+    from lightgbm import LGBMRegressor
+except ImportError:
+    XGBRegressor = XGBClassifier = LGBMRegressor = None
 
 
 # ============================================================
@@ -259,19 +265,32 @@ def cleanup_previous_run(dataset_slug=DATASET_SLUG, local_output_dirs=LOCAL_OUTP
 # 1. EXTRACT: DOWNLOAD AND LOAD DATASETS
 # ============================================================
 
-def download_and_load_datasets(dataset_slug=DATASET_SLUG):
+def download_and_load_datasets(dataset_slug=DATASET_SLUG, data_dir=None, max_fact_rows=None):
     """
-    Downloads the Kaggle dataset and loads every CSV found in it into a
-    dict keyed by file name (without extension), e.g. "dim_customers".
+    Loads the bundled immutable CSVs by default. Kaggle is only a fallback
+    for users who intentionally do not have the project source data.
     """
 
-    path = kagglehub.dataset_download(dataset_slug)
-    csv_files = glob.glob(os.path.join(path, "**", "*.csv"), recursive=True)
+    local_dir = data_dir or os.path.join(os.path.dirname(__file__), "original_data")
+    if os.path.isdir(local_dir):
+        csv_files = glob.glob(os.path.join(local_dir, "*.csv"))
+    else:
+        if kagglehub is None:
+            raise RuntimeError("No local source data found and kagglehub is not installed.")
+        path = kagglehub.dataset_download(dataset_slug)
+        csv_files = glob.glob(os.path.join(path, "**", "*.csv"), recursive=True)
 
     datasets = {}
     for file in csv_files:
         file_name = os.path.splitext(os.path.basename(file))[0]
-        datasets[file_name] = pd.read_csv(file)
+        # The published file is named dim_fact_sales_denormalized although it
+        # is the denormalized fact table used throughout this pipeline.
+        if file_name == "dim_fact_sales_denormalized":
+            file_name = "fact_sales_denormalized"
+        datasets[file_name] = pd.read_csv(
+            file,
+            nrows=max_fact_rows if file_name in {"fact_sales_denormalized", "fact_sales_normalized"} else None,
+        )
 
     print("LOADED DATASETS\n")
     for name, df in datasets.items():
@@ -359,7 +378,13 @@ def validate_foreign_keys(tables):
                 valid = False
                 continue
 
-            missing_count = (~child_df[fk_column].isin(parent_df[parent_column])).sum()
+            child_values = child_df[fk_column]
+            parent_values = parent_df[parent_column]
+            # Facts carry timestamps while the date dimension is day-grain.
+            if fk_column == "sales_date" and parent_column == "full_date":
+                child_values = pd.to_datetime(child_values, errors="coerce").dt.normalize()
+                parent_values = pd.to_datetime(parent_values, errors="coerce").dt.normalize()
+            missing_count = (~child_values.isin(parent_values)).sum()
 
             print(f"{child_table}.{fk_column} -> {parent_table}.{parent_column} Missing={missing_count}")
 
@@ -744,7 +769,43 @@ def create_final_forecast_dataset(sales_forecast_features, df_dates):
     return df
 
 
-def create_final_ml_datasets(ml_features, df_customers, df_products, df_dates):
+def create_temporal_ml_datasets(df_sales, df_customers, df_products):
+    """Create labels strictly after a historical cutoff to avoid target leakage."""
+    sales = df_sales.copy()
+    sales["sales_date"] = pd.to_datetime(sales["sales_date"], errors="coerce")
+    sales = sales.dropna(subset=["sales_date", "total_amount"])
+    dates = np.sort(sales["sales_date"].dt.normalize().unique())
+    if len(dates) < 10:
+        raise ValueError("At least ten distinct sales dates are required for temporal ML datasets.")
+    cutoff = pd.Timestamp(dates[max(1, int(len(dates) * .8) - 1)])
+    history, future = sales[sales.sales_date.dt.normalize() <= cutoff], sales[sales.sales_date.dt.normalize() > cutoff]
+
+    customer = create_customer_features(history, df_customers)
+    future_value = future.groupby("customer_sk").total_amount.sum().rename("customer_ltv")
+    customer = customer.merge(future_value, on="customer_sk", how="left")
+    customer["customer_ltv"] = customer["customer_ltv"].fillna(0.0)
+    customer["churn_label"] = (~customer.customer_sk.isin(future.customer_sk)).astype(int)
+    churn = customer.drop(columns=["customer_ltv"])
+    ltv = customer.drop(columns=["churn_label"])
+
+    demand = create_product_features(history, df_products)
+    future_units = future.groupby("product_sk").sales_id.count().rename("total_units_sold")
+    demand = demand.drop(columns=["total_units_sold", "total_revenue"], errors="ignore").merge(future_units, on="product_sk", how="left")
+    demand["total_units_sold"] = demand["total_units_sold"].fillna(0)
+
+    daily = history.groupby(history.sales_date.dt.normalize()).agg(daily_revenue=("total_amount", "sum"), transaction_count=("sales_id", "count")).reset_index(names="date").sort_values("date")
+    daily["future_revenue"] = daily.daily_revenue.shift(-1)
+    daily["lag_1_revenue"] = daily.daily_revenue.shift(1)
+    daily["rolling_7_day_average"] = daily.daily_revenue.shift(1).rolling(7, min_periods=1).mean()
+    daily["day_of_week"] = daily.date.dt.dayofweek
+    daily["month"] = daily.date.dt.month
+    forecast = daily.dropna(subset=["future_revenue", "lag_1_revenue"])
+    recommendation = create_customer_product_interactions(history)
+    return {"churn": churn, "ltv": ltv, "demand": demand, "forecast": forecast, "recommendation": recommendation}
+
+def create_final_ml_datasets(ml_features, df_customers, df_products, df_dates, df_sales=None):
+    if df_sales is not None:
+        return create_temporal_ml_datasets(df_sales, df_customers, df_products)
 
     final_datasets = {}
 
@@ -965,10 +1026,14 @@ def preprocess_ml_dataset(name, df):
     df = remove_constant_columns(df, protected)
     df = remove_high_cardinality(df, protected)
 
-    df, encoders = encode_categories(df)
-
-    df = clip_numeric_columns(df, exclude=protected)
-    df = scale_numeric_columns(df, exclude=protected)
+    # Splitting happens before fitting encoders/scalers.  Fitting here used
+    # test-set distributions and categories, which leaked evaluation data.
+    if name == "recommendation":
+        df, encoders = encode_categories(df)
+        df = clip_numeric_columns(df, exclude=protected)
+        df = scale_numeric_columns(df, exclude=protected)
+    else:
+        encoders = {}
 
     print("Final shape:", df.shape)
     print("Remaining object columns:", list(df.select_dtypes(include=["object", "category"]).columns))
@@ -976,6 +1041,27 @@ def preprocess_ml_dataset(name, df):
     print(df.head())
 
     return df, encoders
+
+def fit_transform_train_test(X_train, X_test):
+    """Fit imputation, clipping, encoding, and scaling on training rows only."""
+    train, test = X_train.copy(), X_test.copy()
+    numeric = list(train.select_dtypes(include=np.number).columns)
+    for col in numeric:
+        median = train[col].median()
+        train[col] = train[col].fillna(median)
+        test[col] = test[col].fillna(median)
+        low, high = train[col].quantile(CLIP_LOWER), train[col].quantile(CLIP_UPPER)
+        train[col] = train[col].clip(low, high)
+        test[col] = test[col].clip(low, high)
+        span = high - low
+        if span:
+            train[col] = (train[col] - low) / span
+            test[col] = (test[col] - low) / span
+    categorical = list(train.select_dtypes(include=["object", "category"]).columns)
+    if categorical:
+        train = pd.get_dummies(train, columns=categorical, dtype=float)
+        test = pd.get_dummies(test, columns=categorical, dtype=float).reindex(columns=train.columns, fill_value=0)
+    return train.astype(float), test.astype(float)
 
 
 def preprocess_all_datasets(final_ml_clean):
@@ -1625,6 +1711,8 @@ def build_model_registry():
     objects across runs or across multiple app contexts.
     """
 
+    if XGBRegressor is None or XGBClassifier is None or LGBMRegressor is None:
+        raise RuntimeError("ML dependencies are unavailable. Install backend/requirements.txt before training models.")
     return {
 
         "forecast": {
@@ -2160,7 +2248,7 @@ def ingest_new_data_and_retrain(
     trained_packages = dict(context["trained_packages"])
 
     ml_features = create_all_ml_feature_tables(df_sales_denormalized, df_customers, df_products)
-    final_ml = create_final_ml_datasets(ml_features, df_customers, df_products, df_dates)
+    final_ml = create_final_ml_datasets(ml_features, df_customers, df_products, df_dates, df_sales_denormalized)
     final_ml_clean = clean_all_ml_training_datasets(final_ml)
 
     processed_ml_datasets, dataset_encoders = preprocess_all_datasets(final_ml_clean)
@@ -2235,8 +2323,11 @@ def run_initial_pipeline(
     sample_size=LEARNING_SAMPLE_SIZE,
     model_save_dir=MODEL_SAVE_DIR,
     row_usage_folder=ROW_USAGE_FOLDER,
-    cleanup_first=True,
+    cleanup_first=False,
     export_row_usage=EXPORT_ROW_USAGE_MANIFEST,
+    data_dir=None,
+    max_fact_rows=None,
+    train_models=True,
 ):
     """
     Runs the whole pipeline end-to-end (download -> clean -> validate ->
@@ -2252,7 +2343,7 @@ def run_initial_pipeline(
     if cleanup_first:
         cleanup_previous_run(dataset_slug)
 
-    raw_datasets = download_and_load_datasets(dataset_slug)
+    raw_datasets = download_and_load_datasets(dataset_slug, data_dir=data_dir, max_fact_rows=max_fact_rows)
     raw_frames = extract_star_schema_frames(raw_datasets)
     cleaned_frames = clean_all_star_schema_tables(raw_frames)
     star_schema_tables = build_star_schema_tables(cleaned_frames)
@@ -2270,7 +2361,7 @@ def run_initial_pipeline(
     for name, df in ml_features.items():
         print(name, df.shape)
 
-    final_ml = create_final_ml_datasets(ml_features, df_customers, df_products, df_dates)
+    final_ml = create_final_ml_datasets(ml_features, df_customers, df_products, df_dates, df_sales_denormalized)
 
     print("\nFINAL ML DATASETS CREATED")
     for name, df in final_ml.items():
@@ -2281,12 +2372,15 @@ def run_initial_pipeline(
     processed_ml_datasets, dataset_encoders = preprocess_all_datasets(final_ml_clean)
     split_datasets = split_all_datasets(processed_ml_datasets, sample_size=sample_size)
 
-    models_registry = build_model_registry()
-    validate_model_registry(models_registry)
-
-    trained_packages = train_all_initial_models(
-        split_datasets, processed_ml_datasets, models_registry, save_dir=model_save_dir
-    )
+    models_registry = {}
+    trained_packages = {}
+    if train_models:
+        models_registry = build_model_registry()
+        validate_model_registry(models_registry)
+        trained_packages = train_all_initial_models(
+            split_datasets, processed_ml_datasets, models_registry, save_dir=model_save_dir
+        )
+        X_train, X_test = fit_transform_train_test(X_train, X_test)
 
     learning_sales, remaining_sales = split_learning_sales(df_sales_denormalized, sample_size=sample_size)
     row_usage_manifest = build_row_usage_manifest(learning_sales, remaining_sales, star_schema_tables)

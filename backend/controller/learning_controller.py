@@ -1,4 +1,16 @@
 from constants import *
+# Keep the controller as a thin orchestration layer.  The previous version
+# referenced pipeline functions without importing them, so every real ingest
+# failed at the first feature-engineering call.
+from pipelin import (
+    create_all_ml_feature_tables, create_final_ml_datasets,
+    clean_all_ml_training_datasets, preprocess_all_datasets,
+    split_all_datasets, monitor_and_retrain_model, tune_model, train_model,
+    create_model_package, train_recommendation_model, compute_scale_pos_weight,
+    build_row_usage_manifest, export_row_usage_manifest, split_learning_sales,
+    save_pickle,
+)
+from sklearn.metrics import accuracy_score, mean_absolute_error, mean_squared_error, r2_score, roc_auc_score
 import pandas as pd
 import numpy as np
 def clean_dataframe(df):
@@ -69,7 +81,7 @@ def ingest_update_and_dashboard(new_raw_sales_df, context, performance_threshold
     # 2. Rebuild features, datasets, and train/test splits
     # ------------------------------------------------------------------
     ml_features = create_all_ml_feature_tables(df_sales_denormalized, df_customers, df_products)
-    final_ml    = create_final_ml_datasets(ml_features, df_customers, df_products, df_dates)
+    final_ml    = create_final_ml_datasets(ml_features, df_customers, df_products, df_dates, df_sales_denormalized)
     final_ml_clean = clean_all_ml_training_datasets(final_ml)
     processed_ml_datasets, dataset_encoders = preprocess_all_datasets(final_ml_clean)
     split_datasets = split_all_datasets(processed_ml_datasets, sample_size=max_rows)

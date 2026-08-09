@@ -1,57 +1,35 @@
+"""Initialise the operational star schema without altering the source event bank."""
 import os
-import glob
+from pathlib import Path
 import pandas as pd
-from sqlalchemy import create_engine as sqlalchemy_create_engine
-
+from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
-from controller.producer import send_row_event
-import logging
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.ERROR)
-
 
 load_dotenv()
-
-MYSQL_USER = os.getenv("MYSQL_USER")
-MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD")
-MYSQL_HOST = os.getenv("MYSQL_HOST", "mysql")
-MYSQL_PORT = os.getenv("MYSQL_PORT", "3306")
-MYSQL_DATABASE = os.getenv("MYSQL_DATABASE")
-
-DATABASE_URL = (
-    f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}"
-    f"@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}"
+engine = create_engine(
+    f"mysql+pymysql://{os.getenv('MYSQL_USER')}:{os.getenv('MYSQL_PASSWORD')}"
+    f"@{os.getenv('MYSQL_HOST', 'mysql')}:{os.getenv('MYSQL_PORT', '3306')}/{os.getenv('MYSQL_DATABASE')}"
 )
-
-engine = sqlalchemy_create_engine(DATABASE_URL)
-
-CSV_DIRECTORY = "/app/original_data"
+DATA_DIR = Path(os.getenv("SOURCE_DATA_DIR", "/app/original_data"))
+DIMENSIONS = ["dim_campaigns", "dim_customers", "dim_dates", "dim_products", "dim_salespersons", "dim_stores"]
 
 def import_all_csvs():
-    
-    # Looks into /app/original_data/*.csv inside Docker
-    csv_files = glob.glob(os.path.join(CSV_DIRECTORY, "*.csv"))
-    
-    if not csv_files:
-        print(f"No CSV files found in {CSV_DIRECTORY}. Check your volume mapping!")
-        return
+    """Load dimensions once and create an empty, indexed transaction table.
 
-    for file_path in csv_files:
-        file_name = os.path.basename(file_path)
-        # Drops the .csv extension and creates a safe database table name
-        table_name = os.path.splitext(file_name)[0].lower().replace("-", "_").replace(" ", "_")
-        
-        try:
-            print(f"Importing {file_name} into table '{table_name}'...")
-            df = pd.read_csv(file_path)
-            df.to_sql(table_name, con=engine, if_exists='replace', index=False)
-            print(f"Successfully loaded {len(df)} rows.")
-        except Exception as e:
-            print(f"Error importing {file_name}: {e}")
+    Fact rows deliberately remain in the immutable CSV event bank until replayed.
+    """
+    with engine.begin() as connection:
+        for table in DIMENSIONS:
+            pd.read_csv(DATA_DIR / f"{table}.csv").to_sql(table, connection, if_exists="replace", index=False)
+        # Use the source's columns/types, but never copy its transactions during bootstrap.
+        # Read one row solely to retain numeric SQL types, then write no fact data.
+        pd.read_csv(DATA_DIR / "fact_sales_normalized.csv", nrows=1).head(0).to_sql(
+            "fact_sales_normalized", connection, if_exists="replace", index=False
+        )
+        connection.execute(text("ALTER TABLE fact_sales_normalized ADD PRIMARY KEY (sales_sk)"))
+        connection.execute(text("CREATE INDEX ix_fact_sales_date ON fact_sales_normalized (sales_date)"))
+        connection.execute(text("CREATE INDEX ix_fact_sales_customer ON fact_sales_normalized (customer_sk)"))
 
 if __name__ == "__main__":
-    print("Starting initial data load")
-
     import_all_csvs()
-
-    print("Data load complete")
+    print("Dimensions loaded; fact event bank is ready for replay.")

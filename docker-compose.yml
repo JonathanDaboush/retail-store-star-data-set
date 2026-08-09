@@ -1,7 +1,5 @@
 name: star-store
 
-version: "3.9"
-
 services:
   # ==========================================================
   # MYSQL BUSINESS DATABASE
@@ -91,6 +89,24 @@ services:
 
     command: ["python", "quick_load.py"]
 
+    networks:
+      - star-data-network
+
+  consumer:
+    build:
+      context: ./backend
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+    working_dir: /app
+    command: ["python", "-m", "controller.consumer"]
+    restart: unless-stopped
     networks:
       - star-data-network
 

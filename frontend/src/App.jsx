@@ -1,30 +1,24 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
 import "./App.css";
 
+const API = import.meta.env.VITE_API_URL || "http://localhost:8001";
+const money = (v) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v || 0);
+async function api(path, options) { const r = await fetch(`${API}${path}`, options); const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.detail || "Request failed"); return d; }
 function App() {
-  const [customers, setCustomers] = useState([]);
-
-  useEffect(() => {
-    axios
-      .get("http://localhost:8001/customers")
-      .then((response) => {
-        setCustomers(response.data.customers);
-      })
-      .catch((error) => {
-        console.error("Error fetching customers:", error);
-      });
-  }, []);
-
-  return (
-    <ul>
-      {customers.map((customer, index) => (
-        <li key={index}>
-          {index + 1}: {customer.first_name} {customer.last_name}
-        </li>
-      ))}
-    </ul>
-  );
+  const [dashboard, setDashboard] = useState(); const [replay, setReplay] = useState(); const [diagnostics, setDiagnostics] = useState(); const [error, setError] = useState("");
+  const [batchSize, setBatchSize] = useState(100); const [interval, setIntervalSeconds] = useState(5); const [upload, setUpload] = useState(); const [analysis, setAnalysis] = useState();
+  const refresh = async () => { try { const [d,r,x] = await Promise.all([api("/dashboard"), api("/replay"), api("/diagnostics")]); setDashboard(d); setReplay(r); setDiagnostics(x); setError(""); } catch(e) { setError(e.message); } };
+  useEffect(() => { refresh(); const timer = setInterval(refresh, 4000); return () => clearInterval(timer); }, []);
+  const control = async (path, body) => { try { await api(path, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) }); refresh(); } catch(e) { setError(e.message); } };
+  const preview = async (file) => { if (!file) return; try { const form = new FormData(); form.append("file", file); setUpload(await api("/uploads/preview", {method:"POST",body:form})); } catch(e) { setError(e.message); } };
+  const status = replay?.status || "loading";
+  const runAnalysis = async (task) => { try { setAnalysis(await api(`/analytics?task=${task}`)); } catch (e) { setError(e.message); } };
+  return <main><header><div><p className="eyebrow">Retail operations</p><h1>Store performance, as it happens.</h1><p className="sub">Monitor live sales processing and make decisions from verified data.</p></div><button className="secondary" onClick={refresh}>Refresh data</button></header>
+    {error && <p className="error">{error}</p>}<section className="kpis">{[["Revenue",money(dashboard?.kpis?.revenue)],["Orders",(dashboard?.kpis?.orders||0).toLocaleString()],["Customers",(dashboard?.kpis?.customers||0).toLocaleString()],["Freshness",dashboard?.freshness ? new Date(dashboard.freshness).toLocaleDateString() : "No sales yet"]].map(([a,b])=><article key={a}><span>{a}</span><strong>{b}</strong></article>)}</section>
+    <section className="grid"><article className="panel wide"><p className="eyebrow">Historical sales release</p><h2>Process new sales events</h2><p className="sub">Source data remains unchanged. Batches move through Kafka and appear after processing.</p><div className="controls"><label>Events per batch<input type="number" min="1" max="5000" value={batchSize} onChange={e=>setBatchSize(+e.target.value)}/></label><label>Seconds between batches<input type="number" min="0.1" step="0.1" value={interval} onChange={e=>setIntervalSeconds(+e.target.value)}/></label><button disabled={status==="running"} onClick={()=>control("/replay/start",{batch_size:batchSize,interval_seconds:interval})}>Start processing</button>{status==="running"?<button className="secondary" onClick={()=>control("/replay/control",{action:"pause"})}>Pause</button>:status==="paused"?<button onClick={()=>control("/replay/control",{action:"resume"})}>Resume</button>:null}<button className="text" onClick={()=>control("/replay/control",{action:"stop"})}>Stop</button></div><div className="progress"><i style={{width:`${((replay?.events_published||0)/1000000)*100}%`}}/></div><div className="stats">Status <b>{status}</b> · Published <b>{(replay?.events_published||0).toLocaleString()}</b> · Remaining <b>{(replay?.events_remaining||0).toLocaleString()}</b></div></article><article className="panel"><p className="eyebrow">System health</p><h2>Operations</h2>{diagnostics&&<dl><dt>API</dt><dd>{diagnostics.api}</dd><dt>Database</dt><dd>{diagnostics.database}</dd><dt>Kafka</dt><dd>{diagnostics.kafka}</dd><dt>Processed</dt><dd>{diagnostics.processed_transactions?.toLocaleString()}</dd></dl>}</article></section>
+    <section className="grid"><article className="panel wide"><p className="eyebrow">Revenue trend</p><h2>Daily processed sales</h2><div className="bars">{dashboard?.revenue_trend?.length ? dashboard.revenue_trend.map(x=><div title={`${x.date}: ${money(x.revenue)}`} key={x.date} style={{height:`${Math.max(5,x.revenue/Math.max(...dashboard.revenue_trend.map(y=>y.revenue))*100)}%`}}/>) : <p>Start replay to populate actual sales.</p>}</div></article><article className="panel"><p className="eyebrow">Best sellers</p><h2>Top products</h2><ol>{dashboard?.top_products?.map(x=><li key={x.name}>{x.name}<b>{money(x.revenue)}</b></li>)}</ol></article></section>
+    <section className="panel"><p className="eyebrow">Business analysis</p><h2>Explore processed transactions</h2><div className="controls"><button onClick={()=>runAnalysis("revenue_by_category")}>Revenue by category</button><button className="secondary" onClick={()=>runAnalysis("daily_revenue")}>Daily revenue</button><button className="secondary" onClick={()=>runAnalysis("top_customers")}>Top customers</button></div>{analysis?.rows&&<ol>{analysis.rows.slice(0,10).map(x=><li key={x.label}><span>{x.label}</span><b>{money(x.value)}</b></li>)}</ol>}{analysis?.empty&&<p>No processed transactions are available yet.</p>}</section>
+    <section className="panel"><p className="eyebrow">Excel data preview</p><h2>Validate a workbook safely</h2><p className="sub">Use .xlsx or .xls (25 MB max). The original is preserved unchanged.</p><input type="file" accept=".xlsx,.xls" onChange={e=>preview(e.target.files?.[0])}/>{upload&&<div className="preview"><b>{upload.filename}</b><span>{upload.rows} rows · {upload.columns.length} columns</span><p>{upload.validation}</p></div>}</section></main>;
 }
 
 export default App;
