@@ -12,7 +12,11 @@ backend/__pycache__/
 backend/models/*.pkl
 airflow/logs/
 .venv/
+venv/
 *.egg-info/
 dist/
 build/
+*.log
+.pytest_cache/
+.mypy_cache/
 .DS_Store
