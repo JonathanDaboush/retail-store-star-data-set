@@ -1,41 +1,174 @@
 # Retail Store Star Schema Dataset
 
-An end-to-end retail operations demonstration: an immutable historical sales CSV is released in paced batches to Kafka, ingested idempotently into a MySQL star schema, and exposed through a manager-friendly React dashboard.
+Production-style portfolio project showing immutable historical retail data replayed through Kafka into an operational star schema with a FastAPI control plane and React manager dashboard.
+
+## Business purpose
+
+Demonstrate how a retail team can replay historical sales in controlled batches, monitor real processing state, and see incremental business metrics update without rebuilding the warehouse from scratch.
 
 ## Architecture
 
-`original_data/fact_sales_normalized.csv` (read-only event bank) → FastAPI replay control → Kafka → consumer → MySQL fact table → dashboard API → React UI. Dimensions load before any facts, preserving referential availability. Airflow services are included for orchestration infrastructure.
+`backend/original_data/fact_sales_normalized.csv` (immutable source)
+→ FastAPI replay control
+→ Kafka topic (`retail-events-kafka`)
+→ idempotent Kafka consumer
+→ MySQL `fact_sales_normalized` updates
+→ analytics + diagnostics API
+→ React dashboard
 
-## Start locally
+Airflow orchestrates replay execution (`retail_replay_batch` DAG) via the same public API used by the UI.
 
-1. Copy `.env.example` to `.env` and replace every `REPLACE_WITH_A_SECRET` value. Do not commit this file.
-2. Run `docker compose up -d mysql zookeeper kafka`.
-3. Run `docker compose run --rm loader` once. This loads dimensions only and creates an empty indexed fact table.
-4. Run `docker compose up -d backend consumer airflow-init airflow-webserver airflow-scheduler`.
-5. In `frontend`, run `npm install` and `npm run dev`; open the shown Vite URL (normally `http://localhost:5173`).
+## Tech stack
 
-The API is available at `http://localhost:8001/docs`. The dashboard uses it automatically; set `VITE_API_URL` only when hosting the API elsewhere.
+- **Backend:** FastAPI, SQLAlchemy, pandas
+- **Streaming:** Kafka (kafka-python), Zookeeper
+- **Database:** MySQL 8 (star schema + constraints/indexes)
+- **Orchestration:** Apache Airflow 2
+- **Frontend:** React + Vite
+- **ML assets:** persisted `.pkl` artifacts under `backend/models`
 
-## Manager workflow
+## Repository layout
 
-Choose the batch size and pause between batches, then select **Start processing**. The dashboard polls the actual API state every four seconds. Kafka publishing and database consumption are separate; the consumer commits offsets only after the MySQL transaction succeeds. The fact-table primary key makes duplicate delivery safe.
+- `backend/main.py`: API, replay state machine, event-bank selectors, diagnostics, Excel preview
+- `backend/controller/producer.py`: Kafka producer with delivery confirmation + logging
+- `backend/controller/consumer.py`: continuous consumer with validation, dedupe, failure table, manual commits
+- `backend/quick_load.py`: dimension bootstrap + fact constraints/indexes
+- `airflow/dags/retail_replay.py`: staged orchestration DAG
+- `frontend/src/App.jsx`: manager UI
+- `frontend/src/api.js`: centralized API client with timeout/error handling
 
-## Excel preview
+## Prerequisites
 
-The UI accepts `.xlsx` and `.xls` workbooks up to 25 MB. A content-addressed copy is stored under `backend/data/uploads/original`; previews use that copy and never alter the uploaded workbook. Uploads are ignored by Git.
+- Docker + Docker Compose
+- Node.js 20+
 
-## Analytics and ML pipeline
+## Environment variables
 
-The dashboard’s analysis controls query the processed fact table for category revenue, daily revenue, and top customers. The Python pipeline uses the bundled source data by default: `run_initial_pipeline(max_fact_rows=5000)` creates temporal labels from an 80/20 date cutoff, and fits transforms on training data only. Set `train_models=False` to validate/prepare data without model dependencies; model training requires the backend requirements.
+1. Copy `.env.example` to `.env`.
+2. Replace every `REPLACE_WITH_A_SECRET` value.
 
-## Verification
+Used values:
 
-Run `python -m compileall -q backend` and `npm run build` in `frontend`. For a full run, start the services, run one replay batch, then confirm orders/revenue increase in the dashboard and `GET /diagnostics` reports processed transactions.
+- `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`
+- `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_TOPIC`, `KAFKA_CLIENT_ID`
+- `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
+- `AIRFLOW_UID`, `AIRFLOW_USER`, `AIRFLOW_PASSWORD`, `AIRFLOW_EMAIL`
 
-## Airflow
+Never commit `.env`.
 
-The `retail_replay_batch` DAG is manually triggered and starts a 100-event replay batch through the backend API, then validates the recorded state. It retries transient API failures and deliberately reuses the same Kafka publishing logic as the UI.
+## Local startup (end-to-end)
 
-## Limitations
+1. Start infrastructure:
+   ```bash
+   docker compose up -d mysql zookeeper kafka postgres
+   ```
+2. Initialize star schema dimensions + empty fact table:
+   ```bash
+   docker compose run --rm loader
+   ```
+3. Start API + consumer + Airflow:
+   ```bash
+   docker compose up -d backend consumer airflow-init airflow-webserver airflow-scheduler
+   ```
+4. Start frontend:
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+5. Open dashboard (usually `http://localhost:5173`).
 
-The existing saved ML artifacts are preserved but do not yet have prediction endpoints or a manager-facing training workflow. They are not represented as working UI functionality.
+## Replay/event-bank behavior
+
+- Source file (`backend/original_data/fact_sales_normalized.csv`) is treated as immutable.
+- Replay state is stored separately in `replay_state`.
+- Supported batch selectors:
+  - `events` (full event bank)
+  - `day` (`YYYY-MM-DD`)
+  - `week` (`YYYY-Www`)
+  - `store` (`store_sk`)
+- Configurable pacing via `batch_size` + `interval_seconds` (for example: 10/sec, 50 per 5 sec, 500/min depending on values).
+
+## Incremental processing and integrity
+
+- Consumer processes only incoming events (no full table rebuild).
+- `processed_events` table provides event-level idempotency.
+- `fact_sales_normalized` has PK/unique/indexes and foreign keys to dimensions.
+- Malformed/failed events are persisted to `failed_events` and counted in diagnostics.
+
+## API highlights
+
+- `GET /dashboard`: KPI snapshot + revenue trend + top products
+- `GET /analytics?task=...`: business analytics queries
+- `GET /replay`: live replay status (published/consumed/lag/rate)
+- `GET /replay/options`: valid day/week/store selectors from event bank
+- `POST /replay/start`: start batch replay
+- `POST /replay/control`: pause/resume/stop
+- `GET /diagnostics`: API/DB/Kafka/replay health + latest batch + failures
+- `GET /ml/status`: ML artifact availability
+- `POST /uploads/preview`: immutable Excel preview and validation (`.xlsx`, `.xls`)
+
+## Airflow DAG
+
+`retail_replay_batch` steps:
+1. Determine next batch
+2. Validate batch settings
+3. Publish replay batch
+4. Wait for consumer catch-up
+5. Refresh incremental analytics
+6. Validate replay results
+7. Generate summary
+8. Record completion
+
+Includes retries and explicit failure paths.
+
+## Frontend behavior
+
+Dashboard provides:
+- Revenue/orders/customers/freshness
+- Replay controls (mode, selector, size, speed, pause/resume/stop)
+- Processing metrics (published/consumed/remaining/lag/rate/failures)
+- System health statuses (not color-only)
+- Analytics actions and top products
+- Excel validation summary
+
+## ML status
+
+Repository includes persisted model artifacts (`backend/models/*.pkl`).
+The API currently exposes model artifact availability (`/ml/status`) and does not yet expose prediction endpoints.
+
+## Verification commands
+
+From repo root:
+
+```bash
+python -m compileall -q backend
+```
+
+From `frontend`:
+
+```bash
+npm run build
+```
+
+Optional smoke checks after services are running:
+
+```bash
+curl http://localhost:8001/health
+curl http://localhost:8001/replay
+curl http://localhost:8001/diagnostics
+```
+
+## Troubleshooting
+
+- **Replay start returns 409:** an existing replay is still running; pause/stop first.
+- **Replay start returns 422:** selected day/week/store has zero matching events.
+- **Kafka marked failed in diagnostics:** verify `kafka` container health and `KAFKA_BOOTSTRAP_SERVERS`.
+- **Consumer lag grows:** inspect `consumer` logs for DB/FK/validation errors.
+- **Airflow DAG fails:** inspect task logs under Airflow UI and API connectivity to `backend:8000`.
+
+## Project status
+
+Implemented: immutable replay, configurable batch selectors, Kafka producer/consumer reliability, incremental DB updates, Airflow orchestration, manager dashboard controls, diagnostics, and Excel preview validation.
+
+Open: manager-facing prediction endpoints for the existing ML artifacts.
