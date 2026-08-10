@@ -32,10 +32,14 @@ function App() {
   const [diagnostics, setDiagnostics] = useState();
   const [replayOptions, setReplayOptions] = useState();
   const [mlStatus, setMlStatus] = useState();
+  const [mlReport, setMlReport] = useState();
   const [analysis, setAnalysis] = useState();
   const [upload, setUpload] = useState();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [recommendCustomerSk, setRecommendCustomerSk] = useState("");
+  const [recommendations, setRecommendations] = useState();
+  const [recommendLoading, setRecommendLoading] = useState(false);
 
   const [batchSize, setBatchSize] = useState(100);
   const [intervalSeconds, setIntervalSeconds] = useState(5);
@@ -56,6 +60,11 @@ function App() {
       setDiagnostics(x);
       setReplayOptions(options);
       setMlStatus(ml);
+      try {
+        setMlReport(await api.mlReport());
+      } catch {
+        setMlReport(undefined);
+      }
       setError("");
     } catch (e) {
       setError(e.message);
@@ -119,6 +128,20 @@ function App() {
       setError("");
     } catch (e) {
       setError(e.message);
+    }
+  };
+
+  const fetchRecommendations = async () => {
+    if (!recommendCustomerSk) return;
+    try {
+      setRecommendLoading(true);
+      const response = await api.mlRecommendations({ customer_sk: Number(recommendCustomerSk), top_n: 5 });
+      setRecommendations(response);
+      setError("");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setRecommendLoading(false);
     }
   };
 
@@ -294,6 +317,52 @@ function App() {
             ))}
           </ul>
           <p className="sub">{mlStatus?.note}</p>
+        </article>
+
+        <article className="panel">
+          <p className="eyebrow">Live ML reporting</p>
+          <h2>Current prediction summaries</h2>
+          <dl>
+            <dt>Forecast next day revenue</dt>
+            <dd>{money(mlReport?.models?.forecast?.next_day_revenue_estimate)}</dd>
+            <dt>High churn risk customers</dt>
+            <dd>{(mlReport?.models?.churn?.high_risk_count || 0).toLocaleString()}</dd>
+            <dt>Average churn probability</dt>
+            <dd>{((mlReport?.models?.churn?.avg_churn_probability || 0) * 100).toFixed(1)}%</dd>
+            <dt>Avg predicted product demand</dt>
+            <dd>{(mlReport?.models?.demand?.mean_prediction || 0).toFixed(2)}</dd>
+            <dt>Avg predicted customer LTV</dt>
+            <dd>{money(mlReport?.models?.ltv?.mean_prediction)}</dd>
+          </dl>
+          <p className="sub">Generated: {mlReport?.generated_at ? new Date(mlReport.generated_at).toLocaleString() : "Not available"}</p>
+        </article>
+
+        <article className="panel wide">
+          <p className="eyebrow">Customer recommendations</p>
+          <h2>Similar-customer suggestions</h2>
+          <div className="controls">
+            <label>
+              Customer SK
+              <input
+                type="number"
+                min="1"
+                placeholder="Enter customer_sk"
+                value={recommendCustomerSk}
+                onChange={(e) => setRecommendCustomerSk(e.target.value)}
+              />
+            </label>
+            <button onClick={fetchRecommendations} disabled={recommendLoading || !recommendCustomerSk}>
+              {recommendLoading ? "Loading..." : "Get recommendations"}
+            </button>
+          </div>
+          <ol>
+            {recommendations?.recommendations?.map((x) => (
+              <li key={x.product_sk}>
+                <span>{x.product_name || `Product ${x.product_sk}`}</span>
+                <strong>{(x.similarity_score * 100).toFixed(1)}% match</strong>
+              </li>
+            ))}
+          </ol>
         </article>
 
         <article className="panel">
