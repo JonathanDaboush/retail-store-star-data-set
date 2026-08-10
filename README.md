@@ -106,6 +106,9 @@ Never commit `.env`.
 - `POST /replay/control`: pause/resume/stop
 - `GET /diagnostics`: API/DB/Kafka/replay health + latest batch + failures
 - `GET /ml/status`: ML artifact availability
+- `GET /ml/report`: live prediction summaries (forecast/churn/ltv/demand)
+- `POST /ml/recommendations`: customer-level product recommendations
+- `POST /ml/predict/{model}`: direct model inference for supplied feature records
 - `POST /uploads/preview`: immutable Excel preview and validation (`.xlsx`, `.xls`)
 
 ## Airflow DAG
@@ -135,7 +138,7 @@ Dashboard provides:
 ## ML status
 
 Repository includes persisted model artifacts (`backend/models/*.pkl`).
-The API currently exposes model artifact availability (`/ml/status`) and does not yet expose prediction endpoints.
+The API exposes artifact status, prediction summaries, direct inference, and recommendation endpoints.
 
 ## Verification commands
 
@@ -169,6 +172,4 @@ curl http://localhost:8001/diagnostics
 
 ## Project status
 
-Implemented: immutable replay, configurable batch selectors, Kafka producer/consumer reliability, incremental DB updates, Airflow orchestration, manager dashboard controls, diagnostics, and Excel preview validation.
-
-Open: manager-facing prediction endpoints for the existing ML artifacts.
+Implemented: immutable replay, configurable batch selectors, Kafka producer/consumer reliability, incremental DB updates, Airflow orchestration, manager dashboard controls, diagnostics, Excel preview validation, and manager-facing ML prediction/recommendation endpoints.

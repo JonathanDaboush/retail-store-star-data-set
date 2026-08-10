@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import os
+import pickle
 import re
 import threading
 import time
@@ -14,6 +15,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
 
+import numpy as np
 import pandas as pd
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,8 +26,29 @@ from database import engine
 
 ROOT = Path(__file__).resolve().parent
 EVENT_BANK = ROOT / "original_data" / "fact_sales_normalized.csv"
+MODEL_DIR = ROOT / "models"
 UPLOADS = ROOT / "data" / "uploads" / "original"
 UPLOADS.mkdir(parents=True, exist_ok=True)
+
+ML_MODEL_NAMES = ("forecast", "churn", "ltv", "demand", "recommendation")
+TARGET_COLUMNS = {
+    "forecast": "future_revenue",
+    "churn": "churn_label",
+    "ltv": "customer_ltv",
+    "demand": "total_units_sold",
+}
+ML_DATA_CACHE_TTL_SECONDS = 15
+ML_FACT_COLUMNS = (
+    "sales_sk",
+    "sales_id",
+    "customer_sk",
+    "product_sk",
+    "store_sk",
+    "salesperson_sk",
+    "campaign_sk",
+    "sales_date",
+    "total_amount",
+)
 
 app = FastAPI(title="Retail Operations API", version="2.0.0")
 app.add_middleware(
@@ -64,6 +87,15 @@ class ReplayRequest(BaseModel):
 
 class ReplayAction(BaseModel):
     action: Literal["pause", "resume", "stop"]
+
+
+class MLPredictRequest(BaseModel):
+    records: list[dict[str, Any]] = Field(min_length=1, max_length=500)
+
+
+class MLRecommendRequest(BaseModel):
+    customer_sk: int = Field(ge=1)
+    top_n: int = Field(default=5, ge=1, le=20)
 
 
 def setup() -> None:
@@ -190,6 +222,137 @@ def scalar(sql: str, params: dict[str, Any] | None = None) -> Any:
 def rows(sql: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     with engine.connect() as c:
         return [dict(row._mapping) for row in c.execute(text(sql), params or {})]
+
+
+_ml_model_cache: dict[str, dict[str, Any]] = {}
+_ml_dataset_cache: dict[str, Any] = {"loaded_at": 0.0, "snapshot": None, "payload": None}
+
+
+def fact_snapshot() -> dict[str, Any]:
+    snapshot = rows(
+        """
+        SELECT COUNT(*) AS count_rows,
+               MAX(sales_sk) AS max_sales_sk,
+               MAX(sales_date) AS max_sales_date
+        FROM fact_sales_normalized
+        """
+    )[0]
+    return {
+        "count_rows": int(snapshot.get("count_rows") or 0),
+        "max_sales_sk": snapshot.get("max_sales_sk"),
+        "max_sales_date": str(snapshot.get("max_sales_date") or ""),
+    }
+
+
+@lru_cache(maxsize=1)
+def dimension_frames() -> dict[str, pd.DataFrame]:
+    base = ROOT / "original_data"
+    customers = pd.read_csv(base / "dim_customers.csv")
+    products = pd.read_csv(base / "dim_products.csv")
+    dates = pd.read_csv(base / "dim_dates.csv")
+    if "full_date" in dates.columns:
+        dates["full_date"] = pd.to_datetime(dates["full_date"], errors="coerce")
+    return {"customers": customers, "products": products, "dates": dates}
+
+
+def load_model_package(name: str) -> dict[str, Any]:
+    if name not in ML_MODEL_NAMES:
+        raise ValueError(f"Unsupported model: {name}")
+    path = MODEL_DIR / f"{name}_model.pkl"
+    if not path.exists():
+        raise FileNotFoundError(f"Missing model artifact: {path}")
+    mtime = path.stat().st_mtime
+    cached = _ml_model_cache.get(name)
+    if cached and cached.get("mtime") == mtime:
+        return cached["package"]
+    with path.open("rb") as handle:
+        package = pickle.load(handle)
+    if not isinstance(package, dict) or "model" not in package:
+        raise ValueError(f"Invalid model package format for {name}")
+    _ml_model_cache[name] = {"mtime": mtime, "package": package}
+    return package
+
+
+def ml_feature_frame(dataset_name: str, processed: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    if dataset_name not in processed:
+        raise ValueError(f"Dataset {dataset_name} is unavailable.")
+    frame = processed[dataset_name].copy()
+    target = TARGET_COLUMNS.get(dataset_name)
+    if target:
+        frame = frame.drop(columns=[target], errors="ignore")
+    if frame.empty:
+        raise ValueError(f"Dataset {dataset_name} has no rows after preprocessing.")
+    for col in frame.columns:
+        frame[col] = pd.to_numeric(frame[col], errors="coerce")
+    return frame.fillna(0.0)
+
+
+def align_for_model(model: Any, frame: pd.DataFrame) -> pd.DataFrame:
+    feature_names = getattr(model, "feature_names_in_", None)
+    if feature_names is None:
+        return frame
+    aligned = frame.copy()
+    for feature in feature_names:
+        if feature not in aligned.columns:
+            aligned[feature] = 0.0
+    aligned = aligned[[f for f in feature_names if f in aligned.columns]]
+    return aligned.fillna(0.0)
+
+
+def load_ml_datasets() -> dict[str, Any]:
+    now = time.time()
+    snapshot = fact_snapshot()
+    cached_payload = _ml_dataset_cache.get("payload")
+    if (
+        cached_payload is not None
+        and _ml_dataset_cache.get("snapshot") == snapshot
+        and (now - float(_ml_dataset_cache.get("loaded_at") or 0.0)) < ML_DATA_CACHE_TTL_SECONDS
+    ):
+        return cached_payload
+
+    facts = pd.read_sql(
+        text(
+            """
+            SELECT sales_sk,sales_id,customer_sk,product_sk,store_sk,salesperson_sk,campaign_sk,sales_date,total_amount
+            FROM fact_sales_normalized
+            """
+        ),
+        con=engine,
+    )
+    if facts.empty:
+        payload = {"snapshot": snapshot, "raw": {}, "processed": {}}
+        _ml_dataset_cache.update({"loaded_at": now, "snapshot": snapshot, "payload": payload})
+        return payload
+
+    facts = facts[[col for col in ML_FACT_COLUMNS if col in facts.columns]].copy()
+    facts["sales_date"] = pd.to_datetime(facts["sales_date"], errors="coerce")
+    facts = facts.dropna(subset=["sales_date"])
+
+    dims = dimension_frames()
+    from ml_functions.feature_engineering import create_all_ml_feature_tables, clean_all_ml_training_datasets
+    from ml_functions.final_start_schema_datasets import create_final_ml_datasets
+    from ml_functions.preprocess import preprocess_all_datasets
+
+    ml_features = create_all_ml_feature_tables(facts, dims["customers"], dims["products"])
+    final_datasets = create_final_ml_datasets(ml_features, dims["customers"], dims["products"], dims["dates"])
+    cleaned = clean_all_ml_training_datasets(final_datasets)
+    processed, _encoders = preprocess_all_datasets(cleaned)
+
+    payload = {"snapshot": snapshot, "raw": cleaned, "processed": processed}
+    _ml_dataset_cache.update({"loaded_at": now, "snapshot": snapshot, "payload": payload})
+    return payload
+
+
+def model_feature_schema(name: str) -> list[str]:
+    try:
+        package = load_model_package(name)
+        model = package.get("model")
+        feature_names = getattr(model, "feature_names_in_", None)
+        if feature_names is None:
+            return []
+        return [str(col) for col in feature_names]
+    except Exception:
+        return []
 
 
 def selected_frame(batch_mode: str, batch_value: str | None) -> pd.DataFrame:
@@ -606,22 +769,281 @@ def diagnostics() -> dict[str, Any]:
 
 @app.get("/ml/status")
 def ml_status() -> dict[str, Any]:
-    model_dir = ROOT / "models"
     models = []
-    for name in ["forecast", "churn", "ltv", "demand", "recommendation"]:
-        path = model_dir / f"{name}_model.pkl"
+    for name in ML_MODEL_NAMES:
+        path = MODEL_DIR / f"{name}_model.pkl"
         models.append(
             {
                 "model": name,
                 "artifact_present": path.exists(),
                 "artifact_path": str(path.relative_to(ROOT)) if path.exists() else None,
+                "feature_count": len(model_feature_schema(name)),
             }
         )
+    endpoints_enabled = all((MODEL_DIR / f"{name}_model.pkl").exists() for name in ("forecast", "churn", "ltv", "demand"))
     return {
         "models": models,
-        "prediction_endpoints": False,
-        "note": "Model artifacts are present but this API currently exposes model availability only.",
+        "prediction_endpoints": endpoints_enabled,
+        "note": "Prediction and reporting endpoints are available for model artifacts that can be loaded successfully.",
     }
+
+
+@app.get("/ml/schema")
+def ml_schema() -> dict[str, Any]:
+    return {
+        "models": [
+            {
+                "model": name,
+                "features": model_feature_schema(name),
+            }
+            for name in ML_MODEL_NAMES
+        ]
+    }
+
+
+@app.post("/ml/predict/{model_name}")
+def ml_predict(model_name: str, request: MLPredictRequest) -> dict[str, Any]:
+    if model_name not in ML_MODEL_NAMES:
+        raise HTTPException(404, f"Unsupported model: {model_name}")
+    try:
+        package = load_model_package(model_name)
+        model = package["model"]
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        log.exception("Failed loading model %s", model_name)
+        raise HTTPException(500, f"Unable to load model {model_name}: {exc}") from exc
+
+    frame = pd.DataFrame(request.records)
+    if frame.empty:
+        raise HTTPException(422, "records cannot be empty.")
+    for col in frame.columns:
+        frame[col] = pd.to_numeric(frame[col], errors="coerce")
+    frame = frame.fillna(0.0)
+    aligned = align_for_model(model, frame)
+    if aligned.empty:
+        raise HTTPException(422, "No usable numeric features were provided.")
+
+    try:
+        if model_name == "recommendation":
+            distances, indices = model.kneighbors(aligned, n_neighbors=min(10, len(aligned) + 1))
+            return {
+                "model": model_name,
+                "rows": int(len(aligned)),
+                "neighbors": [
+                    {
+                        "row_index": int(i),
+                        "distances": [float(x) for x in distances[i]],
+                        "indices": [int(x) for x in indices[i]],
+                    }
+                    for i in range(len(aligned))
+                ],
+            }
+
+        predictions = model.predict(aligned)
+        response: dict[str, Any] = {
+            "model": model_name,
+            "rows": int(len(predictions)),
+            "predictions": [float(x) for x in np.asarray(predictions)],
+        }
+        if model_name == "churn" and hasattr(model, "predict_proba"):
+            probabilities = model.predict_proba(aligned)[:, 1]
+            response["probabilities"] = [float(x) for x in np.asarray(probabilities)]
+        return response
+    except Exception as exc:  # noqa: BLE001
+        log.exception("Inference failed for model=%s", model_name)
+        raise HTTPException(500, f"Inference failed for {model_name}: {exc}") from exc
+
+
+@app.post("/ml/recommendations")
+def ml_recommendations(request: MLRecommendRequest) -> dict[str, Any]:
+    try:
+        data = load_ml_datasets()
+        raw = data["raw"].get("recommendation")
+        processed = data["processed"].get("recommendation")
+        if raw is None or processed is None or raw.empty or processed.empty:
+            raise HTTPException(422, "Insufficient processed events for recommendations.")
+        package = load_model_package("recommendation")
+        model = package["model"]
+
+        customer_mask = raw["customer_sk"].astype(int) == int(request.customer_sk)
+        if not customer_mask.any():
+            raise HTTPException(404, f"No interactions found for customer_sk={request.customer_sk}")
+
+        customer_vectors = processed.loc[customer_mask].copy()
+        if customer_vectors.empty:
+            raise HTTPException(422, "Unable to build customer feature vector.")
+        customer_vector = customer_vectors.mean(axis=0).to_frame().T
+        aligned = align_for_model(model, customer_vector)
+
+        neighbors = min(max(request.top_n * 4, request.top_n + 1), len(processed))
+        distances, indices = model.kneighbors(aligned, n_neighbors=neighbors)
+        index_list = [int(i) for i in indices[0]]
+        distance_list = [float(d) for d in distances[0]]
+
+        rec_rows = raw.iloc[index_list].copy()
+        rec_rows["distance"] = distance_list
+        rec_rows = rec_rows[rec_rows["customer_sk"].astype(int) != int(request.customer_sk)]
+        if rec_rows.empty:
+            return {"customer_sk": request.customer_sk, "recommendations": []}
+
+        product_meta = dimension_frames()["products"][["product_sk", "product_name", "category", "brand"]].drop_duplicates("product_sk")
+        ranked = (
+            rec_rows.groupby("product_sk", as_index=False)
+            .agg(score=("distance", "mean"), support=("distance", "size"))
+            .sort_values(["score", "support"], ascending=[True, False])
+            .head(request.top_n)
+        )
+        ranked = ranked.merge(product_meta, on="product_sk", how="left")
+        recommendations = [
+            {
+                "product_sk": int(row["product_sk"]),
+                "product_name": row.get("product_name"),
+                "category": row.get("category"),
+                "brand": row.get("brand"),
+                "similarity_score": float(max(0.0, 1.0 - float(row["score"]))),
+                "support": int(row["support"]),
+            }
+            for _, row in ranked.iterrows()
+        ]
+        return {
+            "customer_sk": request.customer_sk,
+            "recommendations": recommendations,
+            "source_interactions": int(customer_mask.sum()),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        log.exception("Recommendation query failed for customer_sk=%s", request.customer_sk)
+        raise HTTPException(500, f"Recommendation request failed: {exc}") from exc
+
+
+@app.get("/ml/report")
+def ml_report() -> dict[str, Any]:
+    start = time.time()
+    try:
+        data = load_ml_datasets()
+        if not data["processed"]:
+            return {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "data_snapshot": data["snapshot"],
+                "models": {},
+                "note": "No processed fact data is available for model scoring yet.",
+            }
+
+        reports: dict[str, Any] = {}
+        for name in ("forecast", "churn", "ltv", "demand"):
+            try:
+                package = load_model_package(name)
+                model = package["model"]
+                feature_frame = ml_feature_frame(name, data["processed"])
+                aligned = align_for_model(model, feature_frame)
+                if aligned.empty:
+                    reports[name] = {"status": "unavailable", "reason": "No usable features"}
+                    continue
+                predictions = np.asarray(model.predict(aligned), dtype=float)
+                base_report = {
+                    "status": "ok",
+                    "rows_scored": int(len(predictions)),
+                    "mean_prediction": float(np.mean(predictions)) if len(predictions) else None,
+                }
+
+                if name == "forecast":
+                    raw_forecast = data["raw"]["forecast"].reset_index(drop=True)
+                    idx = int(np.argmax(predictions)) if len(predictions) else None
+                    base_report.update(
+                        {
+                            "next_day_revenue_estimate": float(predictions[-1]) if len(predictions) else None,
+                            "peak_forecast": {
+                                "date": str(raw_forecast.iloc[idx]["date"]) if idx is not None and idx < len(raw_forecast) else None,
+                                "revenue": float(predictions[idx]) if idx is not None else None,
+                            },
+                        }
+                    )
+                elif name == "churn":
+                    raw_churn = data["raw"]["churn"].reset_index(drop=True)
+                    probs = np.asarray(model.predict_proba(aligned)[:, 1], dtype=float) if hasattr(model, "predict_proba") else predictions
+                    ranked = pd.DataFrame(
+                        {
+                            "customer_sk": raw_churn.get("customer_sk"),
+                            "first_name": raw_churn.get("first_name"),
+                            "last_name": raw_churn.get("last_name"),
+                            "risk": probs,
+                        }
+                    ).sort_values("risk", ascending=False).head(10)
+                    base_report.update(
+                        {
+                            "high_risk_count": int((probs >= 0.7).sum()),
+                            "avg_churn_probability": float(np.mean(probs)) if len(probs) else None,
+                            "top_risk_customers": [
+                                {
+                                    "customer_sk": int(row["customer_sk"]) if pd.notna(row["customer_sk"]) else None,
+                                    "name": f"{row.get('first_name') or ''} {row.get('last_name') or ''}".strip() or None,
+                                    "risk": float(row["risk"]),
+                                }
+                                for _, row in ranked.iterrows()
+                            ],
+                        }
+                    )
+                elif name == "ltv":
+                    raw_ltv = data["raw"]["ltv"].reset_index(drop=True)
+                    ranked = pd.DataFrame(
+                        {
+                            "customer_sk": raw_ltv.get("customer_sk"),
+                            "predicted_ltv": predictions,
+                        }
+                    ).sort_values("predicted_ltv", ascending=False).head(10)
+                    base_report.update(
+                        {
+                            "top_customers": [
+                                {
+                                    "customer_sk": int(row["customer_sk"]) if pd.notna(row["customer_sk"]) else None,
+                                    "predicted_ltv": float(row["predicted_ltv"]),
+                                }
+                                for _, row in ranked.iterrows()
+                            ]
+                        }
+                    )
+                elif name == "demand":
+                    raw_demand = data["raw"]["demand"].reset_index(drop=True)
+                    ranked = pd.DataFrame(
+                        {
+                            "product_sk": raw_demand.get("product_sk"),
+                            "product_name": raw_demand.get("product_name"),
+                            "predicted_units": predictions,
+                        }
+                    ).sort_values("predicted_units", ascending=False).head(10)
+                    base_report.update(
+                        {
+                            "top_products": [
+                                {
+                                    "product_sk": int(row["product_sk"]) if pd.notna(row["product_sk"]) else None,
+                                    "product_name": row.get("product_name"),
+                                    "predicted_units": float(row["predicted_units"]),
+                                }
+                                for _, row in ranked.iterrows()
+                            ]
+                        }
+                    )
+
+                reports[name] = base_report
+            except FileNotFoundError as exc:
+                reports[name] = {"status": "missing_artifact", "reason": str(exc)}
+            except Exception as exc:  # noqa: BLE001
+                log.exception("Model report failed for %s", name)
+                reports[name] = {"status": "failed", "reason": str(exc)}
+
+        elapsed = round(time.time() - start, 3)
+        log.info("Generated ML report in %ss", elapsed)
+        return {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "data_snapshot": data["snapshot"],
+            "elapsed_seconds": elapsed,
+            "models": reports,
+        }
+    except Exception as exc:  # noqa: BLE001
+        log.exception("ML report generation failed")
+        raise HTTPException(500, f"ML reporting failed: {exc}") from exc
 
 
 @app.post("/uploads/preview")

@@ -40,6 +40,20 @@ export const api = {
   replayOptions: () => apiRequest("/replay/options"),
   diagnostics: () => apiRequest("/diagnostics"),
   mlStatus: () => apiRequest("/ml/status"),
+  mlReport: () => apiRequest("/ml/report"),
+  mlSchema: () => apiRequest("/ml/schema"),
+  mlPredict: (modelName, records) =>
+    apiRequest(`/ml/predict/${modelName}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ records }),
+    }),
+  mlRecommendations: (payload) =>
+    apiRequest("/ml/recommendations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
   analytics: (task) => apiRequest(`/analytics?task=${task}`),
   startReplay: (payload) =>
     apiRequest("/replay/start", {
