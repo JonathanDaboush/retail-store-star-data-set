@@ -359,7 +359,7 @@ function App() {
             {recommendations?.recommendations?.map((x) => (
               <li key={x.product_sk}>
                 <span>{x.product_name || `Product ${x.product_sk}`}</span>
-                <b>{(x.similarity_score * 100).toFixed(1)}% match</b>
+                <strong>{(x.similarity_score * 100).toFixed(1)}% match</strong>
               </li>
             ))}
           </ol>

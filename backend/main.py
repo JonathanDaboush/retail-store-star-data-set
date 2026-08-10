@@ -23,6 +23,9 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import text
 
 from database import engine
+from ml_functions.feature_engineering import create_all_ml_feature_tables, clean_all_ml_training_datasets
+from ml_functions.final_start_schema_datasets import create_final_ml_datasets
+from ml_functions.preprocess import preprocess_all_datasets
 
 ROOT = Path(__file__).resolve().parent
 EVENT_BANK = ROOT / "original_data" / "fact_sales_normalized.csv"
@@ -31,6 +34,7 @@ UPLOADS = ROOT / "data" / "uploads" / "original"
 UPLOADS.mkdir(parents=True, exist_ok=True)
 
 ML_MODEL_NAMES = ("forecast", "churn", "ltv", "demand", "recommendation")
+MODEL_ARTIFACT_PATHS = {name: MODEL_DIR / f"{name}_model.pkl" for name in ML_MODEL_NAMES}
 TARGET_COLUMNS = {
     "forecast": "future_revenue",
     "churn": "churn_label",
@@ -226,6 +230,8 @@ def rows(sql: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]
 
 _ml_model_cache: dict[str, dict[str, Any]] = {}
 _ml_dataset_cache: dict[str, Any] = {"loaded_at": 0.0, "snapshot": None, "payload": None}
+_ml_model_cache_lock = threading.Lock()
+_ml_dataset_cache_lock = threading.Lock()
 
 
 def fact_snapshot() -> dict[str, Any]:
@@ -256,21 +262,28 @@ def dimension_frames() -> dict[str, pd.DataFrame]:
 
 
 def load_model_package(name: str) -> dict[str, Any]:
-    if name not in ML_MODEL_NAMES:
+    path = MODEL_ARTIFACT_PATHS.get(name)
+    if path is None:
         raise ValueError(f"Unsupported model: {name}")
-    path = MODEL_DIR / f"{name}_model.pkl"
     if not path.exists():
         raise FileNotFoundError(f"Missing model artifact: {path}")
-    mtime = path.stat().st_mtime
-    cached = _ml_model_cache.get(name)
-    if cached and cached.get("mtime") == mtime:
-        return cached["package"]
-    with path.open("rb") as handle:
-        package = pickle.load(handle)
-    if not isinstance(package, dict) or "model" not in package:
-        raise ValueError(f"Invalid model package format for {name}")
-    _ml_model_cache[name] = {"mtime": mtime, "package": package}
-    return package
+    with _ml_model_cache_lock:
+        mtime = path.stat().st_mtime
+        cached = _ml_model_cache.get(name)
+        if cached and cached.get("mtime") == mtime:
+            return cached["package"]
+        blob = path.read_bytes()
+        digest = hashlib.sha256(blob).hexdigest()
+        expected_digest = os.getenv(f"ML_MODEL_SHA256_{name.upper()}")
+        if not expected_digest:
+            raise ValueError(f"Missing digest configuration: ML_MODEL_SHA256_{name.upper()}")
+        if digest.lower() != expected_digest.strip().lower():
+            raise ValueError(f"Model digest check failed for {name}")
+        package = pickle.loads(blob)
+        if not isinstance(package, dict) or "model" not in package:
+            raise ValueError(f"Invalid model package format for {name}")
+        _ml_model_cache[name] = {"mtime": mtime, "package": package}
+        return package
 
 
 def ml_feature_frame(dataset_name: str, processed: dict[str, pd.DataFrame]) -> pd.DataFrame:
@@ -295,52 +308,49 @@ def align_for_model(model: Any, frame: pd.DataFrame) -> pd.DataFrame:
     for feature in feature_names:
         if feature not in aligned.columns:
             aligned[feature] = 0.0
-    aligned = aligned[[f for f in feature_names if f in aligned.columns]]
+    aligned = aligned[list(feature_names)]
     return aligned.fillna(0.0)
 
 
 def load_ml_datasets() -> dict[str, Any]:
     now = time.time()
     snapshot = fact_snapshot()
-    cached_payload = _ml_dataset_cache.get("payload")
-    if (
-        cached_payload is not None
-        and _ml_dataset_cache.get("snapshot") == snapshot
-        and (now - float(_ml_dataset_cache.get("loaded_at") or 0.0)) < ML_DATA_CACHE_TTL_SECONDS
-    ):
-        return cached_payload
+    with _ml_dataset_cache_lock:
+        cached_payload = _ml_dataset_cache.get("payload")
+        if (
+            cached_payload is not None
+            and _ml_dataset_cache.get("snapshot") == snapshot
+            and (now - float(_ml_dataset_cache.get("loaded_at") or 0.0)) < ML_DATA_CACHE_TTL_SECONDS
+        ):
+            return cached_payload
 
-    facts = pd.read_sql(
-        text(
-            """
-            SELECT sales_sk,sales_id,customer_sk,product_sk,store_sk,salesperson_sk,campaign_sk,sales_date,total_amount
-            FROM fact_sales_normalized
-            """
-        ),
-        con=engine,
-    )
-    if facts.empty:
-        payload = {"snapshot": snapshot, "raw": {}, "processed": {}}
+        facts = pd.read_sql(
+            text(
+                """
+                SELECT sales_sk,sales_id,customer_sk,product_sk,store_sk,salesperson_sk,campaign_sk,sales_date,total_amount
+                FROM fact_sales_normalized
+                """
+            ),
+            con=engine,
+        )
+        if facts.empty:
+            payload = {"snapshot": snapshot, "raw": {}, "processed": {}}
+            _ml_dataset_cache.update({"loaded_at": now, "snapshot": snapshot, "payload": payload})
+            return payload
+
+        facts = facts[[col for col in ML_FACT_COLUMNS if col in facts.columns]].copy()
+        facts["sales_date"] = pd.to_datetime(facts["sales_date"], errors="coerce")
+        facts = facts.dropna(subset=["sales_date"])
+
+        dims = dimension_frames()
+        ml_features = create_all_ml_feature_tables(facts, dims["customers"], dims["products"])
+        final_datasets = create_final_ml_datasets(ml_features, dims["customers"], dims["products"], dims["dates"])
+        cleaned = clean_all_ml_training_datasets(final_datasets)
+        processed, _encoders = preprocess_all_datasets(cleaned)
+
+        payload = {"snapshot": snapshot, "raw": cleaned, "processed": processed}
         _ml_dataset_cache.update({"loaded_at": now, "snapshot": snapshot, "payload": payload})
         return payload
-
-    facts = facts[[col for col in ML_FACT_COLUMNS if col in facts.columns]].copy()
-    facts["sales_date"] = pd.to_datetime(facts["sales_date"], errors="coerce")
-    facts = facts.dropna(subset=["sales_date"])
-
-    dims = dimension_frames()
-    from ml_functions.feature_engineering import create_all_ml_feature_tables, clean_all_ml_training_datasets
-    from ml_functions.final_start_schema_datasets import create_final_ml_datasets
-    from ml_functions.preprocess import preprocess_all_datasets
-
-    ml_features = create_all_ml_feature_tables(facts, dims["customers"], dims["products"])
-    final_datasets = create_final_ml_datasets(ml_features, dims["customers"], dims["products"], dims["dates"])
-    cleaned = clean_all_ml_training_datasets(final_datasets)
-    processed, _encoders = preprocess_all_datasets(cleaned)
-
-    payload = {"snapshot": snapshot, "raw": cleaned, "processed": processed}
-    _ml_dataset_cache.update({"loaded_at": now, "snapshot": snapshot, "payload": payload})
-    return payload
 
 
 def model_feature_schema(name: str) -> list[str]:
@@ -772,19 +782,24 @@ def ml_status() -> dict[str, Any]:
     models = []
     for name in ML_MODEL_NAMES:
         path = MODEL_DIR / f"{name}_model.pkl"
+        digest_configured = bool(os.getenv(f"ML_MODEL_SHA256_{name.upper()}"))
         models.append(
             {
                 "model": name,
                 "artifact_present": path.exists(),
                 "artifact_path": str(path.relative_to(ROOT)) if path.exists() else None,
                 "feature_count": len(model_feature_schema(name)),
+                "digest_configured": digest_configured,
             }
         )
-    endpoints_enabled = all((MODEL_DIR / f"{name}_model.pkl").exists() for name in ("forecast", "churn", "ltv", "demand"))
+    endpoints_enabled = all(
+        (MODEL_DIR / f"{name}_model.pkl").exists() and bool(os.getenv(f"ML_MODEL_SHA256_{name.upper()}"))
+        for name in TARGET_COLUMNS
+    )
     return {
         "models": models,
         "prediction_endpoints": endpoints_enabled,
-        "note": "Prediction and reporting endpoints are available for model artifacts that can be loaded successfully.",
+        "note": "Prediction/reporting endpoints require model artifacts and matching ML_MODEL_SHA256_* environment variables.",
     }
 
 
@@ -881,7 +896,9 @@ def ml_recommendations(request: MLRecommendRequest) -> dict[str, Any]:
         index_list = [int(i) for i in indices[0]]
         distance_list = [float(d) for d in distances[0]]
 
-        rec_rows = raw.iloc[index_list].copy()
+        if len(processed) != len(raw):
+            raise HTTPException(500, "Recommendation dataset alignment mismatch.")
+        rec_rows = raw.reset_index(drop=True).iloc[index_list].copy()
         rec_rows["distance"] = distance_list
         rec_rows = rec_rows[rec_rows["customer_sk"].astype(int) != int(request.customer_sk)]
         if rec_rows.empty:
@@ -932,7 +949,7 @@ def ml_report() -> dict[str, Any]:
             }
 
         reports: dict[str, Any] = {}
-        for name in ("forecast", "churn", "ltv", "demand"):
+        for name in TARGET_COLUMNS:
             try:
                 package = load_model_package(name)
                 model = package["model"]
@@ -949,11 +966,22 @@ def ml_report() -> dict[str, Any]:
                 }
 
                 if name == "forecast":
-                    raw_forecast = data["raw"]["forecast"].reset_index(drop=True)
+                    raw_forecast = data["raw"].get("forecast")
+                    if raw_forecast is None or raw_forecast.empty:
+                        reports[name] = {"status": "unavailable", "reason": "Forecast dataset is empty"}
+                        continue
+                    raw_forecast = raw_forecast.reset_index(drop=True)
+                    if "date" in raw_forecast.columns:
+                        parsed_dates = pd.to_datetime(raw_forecast["date"], errors="coerce")
+                        latest_idx = int(parsed_dates.idxmax()) if parsed_dates.notna().any() else (len(raw_forecast) - 1)
+                    else:
+                        latest_idx = len(raw_forecast) - 1
+                    if len(predictions):
+                        latest_idx = min(max(0, latest_idx), len(predictions) - 1)
                     idx = int(np.argmax(predictions)) if len(predictions) else None
                     base_report.update(
                         {
-                            "next_day_revenue_estimate": float(predictions[-1]) if len(predictions) else None,
+                            "next_day_revenue_estimate": float(predictions[latest_idx]) if len(predictions) else None,
                             "peak_forecast": {
                                 "date": str(raw_forecast.iloc[idx]["date"]) if idx is not None and idx < len(raw_forecast) else None,
                                 "revenue": float(predictions[idx]) if idx is not None else None,
@@ -961,7 +989,11 @@ def ml_report() -> dict[str, Any]:
                         }
                     )
                 elif name == "churn":
-                    raw_churn = data["raw"]["churn"].reset_index(drop=True)
+                    raw_churn = data["raw"].get("churn")
+                    if raw_churn is None or raw_churn.empty:
+                        reports[name] = {"status": "unavailable", "reason": "Churn dataset is empty"}
+                        continue
+                    raw_churn = raw_churn.reset_index(drop=True)
                     probs = np.asarray(model.predict_proba(aligned)[:, 1], dtype=float) if hasattr(model, "predict_proba") else predictions
                     ranked = pd.DataFrame(
                         {
@@ -986,7 +1018,11 @@ def ml_report() -> dict[str, Any]:
                         }
                     )
                 elif name == "ltv":
-                    raw_ltv = data["raw"]["ltv"].reset_index(drop=True)
+                    raw_ltv = data["raw"].get("ltv")
+                    if raw_ltv is None or raw_ltv.empty:
+                        reports[name] = {"status": "unavailable", "reason": "LTV dataset is empty"}
+                        continue
+                    raw_ltv = raw_ltv.reset_index(drop=True)
                     ranked = pd.DataFrame(
                         {
                             "customer_sk": raw_ltv.get("customer_sk"),
@@ -1005,7 +1041,11 @@ def ml_report() -> dict[str, Any]:
                         }
                     )
                 elif name == "demand":
-                    raw_demand = data["raw"]["demand"].reset_index(drop=True)
+                    raw_demand = data["raw"].get("demand")
+                    if raw_demand is None or raw_demand.empty:
+                        reports[name] = {"status": "unavailable", "reason": "Demand dataset is empty"}
+                        continue
+                    raw_demand = raw_demand.reset_index(drop=True)
                     ranked = pd.DataFrame(
                         {
                             "product_sk": raw_demand.get("product_sk"),
