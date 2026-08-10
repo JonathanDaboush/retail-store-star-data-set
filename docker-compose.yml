@@ -191,6 +191,7 @@ services:
   airflow-init:
     image: apache/airflow:2.10.5
     container_name: star-airflow-init
+    user: "0:0"
 
     depends_on:
       postgres:
@@ -205,8 +206,15 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW_UID: ${AIRFLOW_UID}
 
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+
     command: >
       bash -c "
+      mkdir -p /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins &&
+      chown -R ${AIRFLOW_UID}:0 /opt/airflow/logs /opt/airflow/dags /opt/airflow/plugins &&
       airflow db migrate &&
       airflow users create
       --username ${AIRFLOW_USER}
@@ -228,6 +236,7 @@ services:
     image: apache/airflow:2.10.5
     container_name: star-airflow-webserver
     restart: unless-stopped
+    user: "${AIRFLOW_UID}:0"
 
     depends_on:
       airflow-init:
@@ -262,6 +271,7 @@ services:
     image: apache/airflow:2.10.5
     container_name: star-airflow-scheduler
     restart: unless-stopped
+    user: "${AIRFLOW_UID}:0"
 
     depends_on:
       airflow-init:

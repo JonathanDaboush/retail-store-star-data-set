@@ -192,23 +192,24 @@ def run() -> None:
         enable_auto_commit=False,
         auto_offset_reset="earliest",
         value_deserializer=lambda value: json.loads(value.decode("utf-8")),
-        consumer_timeout_ms=0,
     )
 
     log.info("Consumer started topic=%s at %s", TOPIC, datetime.now(timezone.utc).isoformat())
-    for message in consumer:
-        try:
-            result = process(message.value)
-            consumer.commit()
-            if result == "duplicate":
-                log.info("Skipped duplicate event at offset=%s", message.offset)
-        except Exception as exc:  # noqa: BLE001
-            log.exception("Event processing failed at offset=%s", message.offset)
-            try:
-                record_failure(message.value, str(exc), message.offset)
-                consumer.commit()
-            except Exception:  # noqa: BLE001
-                log.exception("Failed to persist malformed event at offset=%s", message.offset)
+    while True:
+        for _topic_partition, messages in consumer.poll(timeout_ms=1000, max_records=100).items():
+            for message in messages:
+                try:
+                    result = process(message.value)
+                    consumer.commit()
+                    if result == "duplicate":
+                        log.info("Skipped duplicate event at offset=%s", message.offset)
+                except Exception as exc:  # noqa: BLE001
+                    log.exception("Event processing failed at offset=%s", message.offset)
+                    try:
+                        record_failure(message.value, str(exc), message.offset)
+                        consumer.commit()
+                    except Exception:  # noqa: BLE001
+                        log.exception("Failed to persist malformed event at offset=%s", message.offset)
 
 
 if __name__ == "__main__":
