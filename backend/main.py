@@ -301,7 +301,7 @@ def ml_feature_frame(dataset_name: str, processed: dict[str, pd.DataFrame]) -> p
 
 
 def align_for_model(model: Any, frame: pd.DataFrame) -> pd.DataFrame:
-    feature_names = getattr(model, "feature_names_in_", None)
+    feature_names = expected_model_features(model)
     if feature_names is None:
         return frame
     aligned = frame.copy()
@@ -310,6 +310,24 @@ def align_for_model(model: Any, frame: pd.DataFrame) -> pd.DataFrame:
             aligned[feature] = 0.0
     aligned = aligned[list(feature_names)]
     return aligned.fillna(0.0)
+
+
+def expected_model_features(model: Any) -> list[str] | None:
+    feature_names = getattr(model, "feature_names_in_", None)
+    if feature_names is not None:
+        return [str(feature) for feature in feature_names]
+
+    fallback_names = getattr(model, "feature_name_", None)
+    if fallback_names:
+        return [str(feature) for feature in fallback_names]
+
+    booster = getattr(model, "booster_", None)
+    if booster is not None:
+        try:
+            return [str(feature) for feature in booster.feature_name()]
+        except Exception:  # noqa: BLE001
+            return None
+    return None
 
 
 def load_ml_datasets() -> dict[str, Any]:
@@ -357,10 +375,10 @@ def model_feature_schema(name: str) -> list[str]:
     try:
         package = load_model_package(name)
         model = package.get("model")
-        feature_names = getattr(model, "feature_names_in_", None)
+        feature_names = expected_model_features(model)
         if feature_names is None:
             return []
-        return [str(col) for col in feature_names]
+        return feature_names
     except Exception:
         return []
 
