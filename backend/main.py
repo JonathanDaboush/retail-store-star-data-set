@@ -10,6 +10,8 @@ import pickle
 import re
 import threading
 import time
+from urllib.error import URLError
+from urllib.request import urlopen
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -768,6 +770,17 @@ def diagnostics() -> dict[str, Any]:
     except Exception:
         kafka = "Failed"
 
+    airflow = "Failed"
+    airflow_health_url = os.getenv("AIRFLOW_HEALTH_URL", "http://airflow-webserver:8080/health")
+    try:
+        with urlopen(airflow_health_url, timeout=2) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        metadatabase_status = str(payload.get("metadatabase", {}).get("status", "")).lower()
+        scheduler_status = str(payload.get("scheduler", {}).get("status", "")).lower()
+        airflow = "Healthy" if metadatabase_status == "healthy" and scheduler_status == "healthy" else "Warning"
+    except (OSError, URLError, ValueError):
+        airflow = "Failed"
+
     latest_batch = rows(
         """
         SELECT batch_mode, batch_value, published_count, started_offset, ended_offset, published_at
@@ -784,7 +797,7 @@ def diagnostics() -> dict[str, Any]:
         "api": "Healthy",
         "database": "Healthy",
         "kafka": kafka,
-        "airflow": "Configured",
+        "airflow": airflow,
         "replay_status": replay_status_label,
         "replay": replay,
         "processed_transactions": int(scalar("SELECT COUNT(*) FROM fact_sales_normalized") or 0),
