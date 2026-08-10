@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, text
+from sqlalchemy import BigInteger, Date, DateTime, Integer, Numeric, String, create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
 load_dotenv()
@@ -24,6 +24,68 @@ DIMENSIONS = [
     "dim_salespersons",
     "dim_stores",
 ]
+
+TABLE_DTYPES = {
+    "dim_campaigns": {
+        "campaign_sk": Integer(),
+        "campaign_id": String(32),
+        "campaign_name": String(255),
+        "start_date_sk": Integer(),
+        "end_date_sk": Integer(),
+        "campaign_budget": Numeric(14, 2),
+    },
+    "dim_customers": {
+        "customer_sk": Integer(),
+        "customer_id": String(32),
+        "first_name": String(100),
+        "last_name": String(100),
+        "email": String(255),
+        "residential_location": String(120),
+        "customer_segment": String(80),
+    },
+    "dim_dates": {
+        "full_date": Date(),
+        "date_sk": Integer(),
+        "year": Integer(),
+        "month": Integer(),
+        "day": Integer(),
+        "weekday": Integer(),
+        "quarter": Integer(),
+    },
+    "dim_products": {
+        "product_sk": Integer(),
+        "product_id": String(32),
+        "product_name": String(255),
+        "category": String(120),
+        "brand": String(120),
+        "origin_location": String(120),
+    },
+    "dim_salespersons": {
+        "salesperson_sk": Integer(),
+        "salesperson_id": String(32),
+        "salesperson_name": String(150),
+        "salesperson_role": String(80),
+    },
+    "dim_stores": {
+        "store_sk": Integer(),
+        "store_id": String(32),
+        "store_name": String(150),
+        "store_type": String(120),
+        "store_location": String(120),
+        "store_manager_sk": Integer(),
+    },
+    "fact_sales_normalized": {
+        "sales_sk": BigInteger(),
+        "sales_id": String(64),
+        "customer_sk": Integer(),
+        "product_sk": Integer(),
+        "store_sk": Integer(),
+        "salesperson_sk": Integer(),
+        "campaign_sk": Integer(),
+        "sales_date": DateTime(),
+        "total_amount": Numeric(14, 2),
+    },
+}
 
 
 def _safe_execute(connection, sql: str) -> None:
@@ -45,13 +107,20 @@ def import_all_csvs() -> None:
     """Load dimensions and create an empty, constrained, indexed fact table."""
     with engine.begin() as connection:
         for table in DIMENSIONS:
-            pd.read_csv(DATA_DIR / f"{table}.csv").to_sql(table, connection, if_exists="replace", index=False)
+            pd.read_csv(DATA_DIR / f"{table}.csv").to_sql(
+                table,
+                connection,
+                if_exists="replace",
+                index=False,
+                dtype=TABLE_DTYPES[table],
+            )
 
         pd.read_csv(DATA_DIR / "fact_sales_normalized.csv", nrows=1).head(0).to_sql(
             "fact_sales_normalized",
             connection,
             if_exists="replace",
             index=False,
+            dtype=TABLE_DTYPES["fact_sales_normalized"],
         )
 
         _safe_execute(connection, "ALTER TABLE dim_campaigns ADD PRIMARY KEY (campaign_sk)")

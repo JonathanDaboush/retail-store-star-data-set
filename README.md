@@ -46,6 +46,7 @@ Airflow orchestrates replay execution (`retail_replay_batch` DAG) via the same p
 
 1. Copy `.env.example` to `.env`.
 2. Replace every `REPLACE_WITH_A_SECRET` value.
+3. Leave the `ML_MODEL_SHA256_*` values as-is unless you intentionally regenerate the checked-in model artifacts.
 
 Used values:
 
@@ -53,6 +54,7 @@ Used values:
 - `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_TOPIC`, `KAFKA_CLIENT_ID`
 - `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
 - `AIRFLOW_UID`, `AIRFLOW_USER`, `AIRFLOW_PASSWORD`, `AIRFLOW_EMAIL`
+- `CORS_ORIGINS`
 - `ML_MODEL_SHA256_FORECAST`, `ML_MODEL_SHA256_CHURN`, `ML_MODEL_SHA256_LTV`, `ML_MODEL_SHA256_DEMAND`, `ML_MODEL_SHA256_RECOMMENDATION` (required for ML inference endpoints)
 
 Never commit `.env`.
@@ -67,6 +69,7 @@ Never commit `.env`.
    ```bash
    docker compose run --rm loader
    ```
+   The loader creates typed MySQL tables before adding keys/indexes so replay-ready `sales_id` uniqueness and foreign keys can be created successfully on a fresh database.
 3. Start API + consumer + Airflow:
    ```bash
    docker compose up -d backend consumer airflow-init airflow-webserver airflow-scheduler
